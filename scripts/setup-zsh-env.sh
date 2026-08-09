@@ -11,7 +11,6 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIGS_DIR="$DOTFILES_DIR/configs"
 
 info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
@@ -59,47 +58,21 @@ ensure_pkg() {
 }
 
 # ---------------------------------------------------------------------------
-# Backup a file before overwriting
-# ---------------------------------------------------------------------------
-backup_file() {
-  local f=$1
-  if [[ -f "$f" ]]; then
-    local bak="${f}.bak.$(date +%Y%m%d%H%M%S)"
-    warn "Backing up existing $f -> $bak"
-    cp "$f" "$bak"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Copy a dotfile from this repo into place, backing up any existing file
-# ---------------------------------------------------------------------------
-copy_dotfile() {
-  local src="$1" dest="$2"
-  if [[ ! -f "$src" ]]; then
-    error "$src not found in dotfiles repo — skipping $dest"
-    return 1
-  fi
-  backup_file "$dest"
-  cp "$src" "$dest"
-  info "$dest copied from $src"
-}
-
-# ---------------------------------------------------------------------------
 # Core packages
 # ---------------------------------------------------------------------------
 install_core_packages() {
   section "Installing core packages"
   if [[ "$OS" == "debian" ]]; then
     sudo apt-get update -qq
-    pkg_install zsh tmux git curl wget
+    pkg_install zsh tmux git curl wget make
   elif [[ "$OS" == "redhat" ]]; then
-    pkg_install zsh tmux git curl wget
+    pkg_install zsh tmux git curl wget make
   elif [[ "$OS" == "macos" ]]; then
     if ! command -v brew &>/dev/null; then
       error "Homebrew not found. Install it first: https://brew.sh"
       exit 1
     fi
-    pkg_install zsh tmux git curl wget
+    pkg_install zsh tmux git curl wget make
   fi
 }
 
@@ -131,6 +104,15 @@ install_hsmw_plugin() {
     https://github.com/zdharma-continuum/history-search-multi-word.git \
     "$dest"
   info "Installed history-search-multi-word"
+}
+
+# ---------------------------------------------------------------------------
+# Shell script lint/format tools, required by this repo's conventions
+# ---------------------------------------------------------------------------
+install_shell_lint_tools() {
+  section "Shell lint/format tools (shellcheck, shfmt)"
+  ensure_pkg shellcheck
+  ensure_pkg shfmt
 }
 
 # ---------------------------------------------------------------------------
@@ -189,27 +171,16 @@ install_krew() {
 }
 
 # ---------------------------------------------------------------------------
-# Write ~/.profile
+# Configs (~/.zshrc, ~/.profile, ~/.tmux.conf, ~/.bashrc) and scripts
+# (~/.local/bin) — delegates to the Makefile so this bootstrap script and
+# `make install-configs` / `make install-local-bin` share one implementation.
 # ---------------------------------------------------------------------------
-write_profile() {
-  section "Writing ~/.profile"
-  copy_dotfile "$CONFIGS_DIR/.profile" "$HOME/.profile"
-}
+install_configs_and_local_bin() {
+  section "Configs (~/.zshrc, ~/.profile, ~/.tmux.conf, ~/.bashrc)"
+  make -C "$DOTFILES_DIR" install-configs
 
-# ---------------------------------------------------------------------------
-# Write ~/.zshrc
-# ---------------------------------------------------------------------------
-write_zshrc() {
-  section "Writing ~/.zshrc"
-  copy_dotfile "$CONFIGS_DIR/.zshrc" "$HOME/.zshrc"
-}
-
-# ---------------------------------------------------------------------------
-# Write ~/.tmux.conf
-# ---------------------------------------------------------------------------
-write_tmux_conf() {
-  section "Writing ~/.tmux.conf"
-  copy_dotfile "$CONFIGS_DIR/.tmux.conf" "$HOME/.tmux.conf"
+  section "Scripts (~/.local/bin)"
+  make -C "$DOTFILES_DIR" install-local-bin
 }
 
 # ---------------------------------------------------------------------------
@@ -240,15 +211,14 @@ main() {
   install_core_packages
   install_oh_my_zsh
   install_hsmw_plugin
+  install_shell_lint_tools
 
   # Optional tools — comment out anything you don't need
   install_direnv
   install_tfenv
   install_krew
 
-  write_profile
-  write_zshrc
-  write_tmux_conf
+  install_configs_and_local_bin
   set_default_shell
 
   echo

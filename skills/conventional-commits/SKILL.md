@@ -1,0 +1,267 @@
+---
+name: conventional-commits
+description: Formats commit messages using the Conventional Commits specification. Use when creating commits, writing commit messages, or when the user mentions commits, git commits, or commit messages. Ensures commits follow the standard format for automated tooling, changelog generation, and semantic versioning.
+license: MIT
+metadata:
+  author: github.com/bastos
+  version: "2.1"
+---
+
+# Conventional Commits
+
+Format all commit messages according to the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification. This enables automated changelog generation, semantic versioning, and better commit history.
+
+## Format Structure
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+## Commit Types
+
+### SemVer-Mapped Core Types
+
+Use these types when they match the change; they are the only types with
+implicit SemVer meaning in the specification:
+
+- **`feat:`** - A new feature (correlates with MINOR in Semantic Versioning)
+- **`fix:`** - A bug fix (correlates with PATCH in Semantic Versioning)
+
+### Common Additional Types
+
+- **`docs:`** - Documentation only changes
+- **`style:`** - Code style changes (formatting, missing semicolons, etc.)
+- **`refactor:`** - Code refactoring without bug fixes or new features
+- **`perf:`** - Performance improvements
+- **`test:`** - Adding or updating tests
+- **`build:`** - Build system or external dependencies changes
+- **`ci:`** - CI/CD configuration changes
+- **`chore:`** - Other changes that don't modify src or test files
+- **`revert:`** - Reverts a previous commit
+
+## Scope
+
+An optional scope provides additional contextual information about the section of the codebase:
+
+```
+feat(parser): add ability to parse arrays
+fix(auth): resolve token expiration issue
+docs(readme): update installation instructions
+```
+
+## Description
+
+- Must immediately follow the colon and space after the type/scope
+
+Style recommendations:
+- Use imperative mood ("add feature" not "added feature" or "adds feature")
+- Don't capitalize the first letter
+- No period at the end
+- Prefer 72 characters or fewer (including type and scope)
+- Recommended: 50 characters or fewer for better readability
+
+## Body
+
+- Optional longer description providing additional context
+- Must begin one blank line after the description
+- Can consist of multiple paragraphs
+- Explain the "what" and "why" of the change, not the "how"
+
+## Breaking Changes
+
+Breaking changes can be indicated in two ways:
+
+### 1. Using `!` in the type/scope
+
+```
+feat!: send an email to the customer when a product is shipped
+feat(api)!: send an email to the customer when a product is shipped
+```
+
+### 2. Using BREAKING CHANGE footer
+
+```
+feat: allow provided config object to extend other configs
+
+BREAKING CHANGE: `extends` key in config file is now used for extending other config files
+```
+
+The specification also treats `BREAKING-CHANGE:` as a synonymous footer token;
+prefer `BREAKING CHANGE:` unless a project convention says otherwise.
+
+### 3. Both methods
+
+```
+chore!: drop support for Node 6
+
+BREAKING CHANGE: use JavaScript features not available in Node 6.
+```
+
+## Examples
+
+### Simple feature
+
+```
+feat: add user authentication
+```
+
+### Feature with scope
+
+```
+feat(auth): add OAuth2 support
+```
+
+### Bug fix with body
+
+```
+fix: prevent racing of requests
+
+Introduce a request id and a reference to latest request. Dismiss
+incoming responses other than from latest request.
+
+Remove timeouts which were used to mitigate the racing issue but are
+obsolete now.
+```
+
+### Breaking change
+
+```
+feat!: migrate to new API client
+
+BREAKING CHANGE: The API client interface has changed. All methods now
+return Promises instead of using callbacks.
+```
+
+### Documentation update
+
+```
+docs: correct spelling of CHANGELOG
+```
+
+### Multi-paragraph body with footers
+
+```
+fix: prevent racing of requests
+
+Introduce a request id and a reference to latest request. Dismiss
+incoming responses other than from latest request.
+
+Remove timeouts which were used to mitigate the racing issue but are
+obsolete now.
+
+Reviewed-by: Z
+Refs: #123
+```
+
+## Commit Sign-off
+
+Every commit created via this skill carries exactly one identity trailer:
+
+```
+Signed-off-by: hrishin <hrishishinde.p@gmail.com>
+```
+
+Do not add any other authorship or co-author trailer — including the
+harness's default AI co-author trailer (e.g. `Co-Authored-By: Claude ...`).
+If a commit message is drafted with such a trailer already present, replace
+it with the `Signed-off-by` line above rather than keeping both.
+
+## Guidelines
+
+1. **Always use a type** - Every commit must start with a type followed by a colon and space
+2. **Use imperative mood** - Write as if completing the sentence "If applied, this commit will..."
+3. **Be specific** - The description should clearly communicate what changed
+4. **Keep it focused** - One logical change per commit
+5. **Use scopes when helpful** - Scopes help categorize changes within a codebase
+6. **Document breaking changes** - Always indicate breaking changes clearly
+
+## Semantic Versioning Correlation
+
+- **`fix:`** → PATCH version bump (1.0.0 → 1.0.1)
+- **`feat:`** → MINOR version bump (1.0.0 → 1.1.0)
+- **BREAKING CHANGE** → MAJOR version bump (1.0.0 → 2.0.0)
+
+## When to Use
+
+Use this format for:
+- All git commits
+- Commit message generation
+- Pull request merge commits
+- When the user asks about commit messages or git commits
+
+## Copying messages to the clipboard
+
+When asked to copy a generated commit message to the macOS clipboard,
+use a **single-line pipeline** rather than a multi-line heredoc:
+
+✅ `printf '%s\n' 'first line' '' 'body line 1' 'body line 2' | pbcopy && pbpaste`
+
+❌ `cat <<'EOF' | pbcopy` ... `EOF` (multi-line heredoc)
+
+Multi-line heredoc scripts can defeat Claude Code's command-exclusion
+matcher and cause `pbcopy` to be blocked by the macOS sandbox, leading
+to a flaky `exit 1`. The `printf '%s\n'` form parses as a clean
+pipeline, matches the sandbox exclusion reliably, and preserves blank
+lines (pass `''` for them).
+
+## Validating the message (required)
+
+After composing a commit message — and **before** presenting, copying, or
+committing it — lint it with the bundled `commitlint` validator. It enforces the
+same Conventional Commits rules as CI (`commitlint@19.8.0` +
+`@commitlint/config-conventional`), so a message that passes here won't be
+rejected downstream.
+
+1. Resolve the skill directory portably (BSD `readlink` has no `-f`):
+
+   ```bash
+   SKILL_LINK=~/.claude/skills/conventional-commits/SKILL.md
+   SKILL_TARGET="$(readlink "$SKILL_LINK" 2>/dev/null || echo "$SKILL_LINK")"
+   SKILL_DIR="$(cd "$(dirname "$SKILL_TARGET")" && pwd -P)"
+   ```
+
+2. Write the drafted message to a temp file and lint it (use the single-line
+   `printf '%s\n' … ` form from the clipboard section above — pass `''` for
+   blank lines):
+
+   ```bash
+   MSG="$(mktemp)"
+   printf '%s\n' 'feat(scope): summary' '' 'Body explaining why.' > "$MSG"
+   "$SKILL_DIR/scripts/validate-commit-msg.sh" "$MSG"; echo "exit=$?"
+   ```
+
+3. **Act on the result — this is the feedback loop:**
+   - **Exit `0`** → the message passes commitlint; proceed to present / copy /
+     commit it.
+   - **Non-zero** → commitlint prints a verbose report naming each failed rule
+     (e.g. `type-empty`, `subject-empty`, `subject-full-stop`,
+     `header-max-length`). Read that report, revise the message to fix **exactly
+     those** rules, rewrite `$MSG`, and re-run the validator. Repeat up to **3**
+     times. If it still fails, present the message alongside the outstanding
+     commitlint report and let the user decide.
+
+The validator's `--verbose` output on stdout/stderr **is** the feedback channel:
+each line tells you which rule failed and why, so map those directly onto edits.
+
+> The **first** run performs a one-time `bun install` into
+> `${XDG_CACHE_HOME:-~/.cache}/conventional-commits-skill` (needs network);
+> every run after that is offline and fast. Requires `bun` on `PATH`
+> (<https://bun.sh>).
+
+## Common Mistakes to Avoid
+
+❌ `Added new feature` (past tense, capitalized)
+✅ `feat: add new feature` (imperative, lowercase)
+
+❌ `fix: bug` (too vague)
+✅ `fix: resolve null pointer exception in user service`
+
+❌ `feat: add feature` (redundant)
+✅ `feat: add user profile page`
+
+❌ `feat: Added OAuth support.` (past tense, period)
+✅ `feat: add OAuth support`

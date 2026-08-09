@@ -17,9 +17,9 @@ export PATH="$PATH:/Users/hrishis/go/bin/"
 alias docker=podman
 alias python=python3
 alias kgnl="k get node -L node-type"
-alias pup="pulumi up -y"
-alias pdst="pulumi destroy -y"
-alias psop="pulumi stack output"
+alias puup="pulumi up -y"
+alias pudst="pulumi destroy -y"
+alias pusop="pulumi stack output"
 
 
 kgn() {
