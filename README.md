@@ -49,3 +49,7 @@ After `make bootstrap` finishes:
 - `installers/` — the scripts behind the Makefile targets: symlinking configs/scripts/skills and fetching vendored skills.
 - `skills/` — Claude Code / agent skills (`SKILL.md` format), some authored here and some vendored from upstream via `make fetch-external-skills`.
 - `Makefile` — entry point for setup and installation; run `make help` for the full target list.
+
+## Thanks
+
+Thanks to [@surajssd](https://github.com/surajssd) for the inspiration behind this repo.
