@@ -41,8 +41,6 @@ make pull-master
 # Update from upstream and reinstall (pull-master + fetch-external-skills + install-all)
 make update
 
-# Clone the private dotfiles repository
-make clone-private
 ```
 
 ### How Installation Works

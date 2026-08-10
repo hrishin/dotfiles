@@ -36,7 +36,6 @@ Run `make help` for the full list.
 | `make fetch-external-skills` | Downloads the vendored external skills (from `mattpocock/skills`, `bastos/skills`) into `skills/`. Not part of `install-all`, so a plain install stays offline. |
 | `make pull-master` | `git pull` on this repo, and on the private repo too if `PRIVATE_REPO_DIR` is set. |
 | `make update` | `pull-master` + `fetch-external-skills` + `install-all` — pulls latest and reinstalls everything. |
-| `make clone-private` | Clones the private dotfiles repo: `make clone-private PRIVATE_REPO_URL=<git-url> [PRIVATE_REPO_DIR=<path>]`. |
 
 After `make bootstrap` finishes:
 

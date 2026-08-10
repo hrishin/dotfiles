@@ -43,6 +43,78 @@ Reports top disk consumers on a Linux host (largest directories and files under 
 
 Run as root (or with `sudo`) for a complete open-file scan — otherwise it only sees your own processes' file descriptors. Walking a large filesystem with `du`/`find` can take a while; permission-denied subdirectories are skipped rather than aborting the scan.
 
+### `flux-status.sh`
+
+Reports FluxCD health end-to-end: lists controller pods (flagging non-`Running`/not-ready/
+high-restart ones, and for each one, the container's exit code, terminate reason (e.g.
+`OOMKilled`), and recent Events pulled from `kubectl describe pod`), lists Kustomizations,
+HelmReleases, and all source types (Git/OCI/Helm repositories, HelmCharts, Buckets), aggregates
+every resource whose `Ready` condition isn't `True` into one failing-resources summary, and tails
+each controller's logs for recent `error`/`failed`/`retry`/`panic` lines. Does not check Flux
+CLI/controller versions or image tags.
+
+**Dependencies:** `kubectl` (configured for the target cluster), `flux` CLI, `jq`.
+
+**Usage:**
+
+```bash
+./flux-status.sh                                            # flux-system ns, current context
+./flux-status.sh -n flux-system -c my-cluster-context        # explicit namespace/context
+./flux-status.sh -s 6h -l 50                                 # look back 6h, up to 50 log lines/pod
+./flux-status.sh -h | --help
+```
+
+### `gpu-node-debug.sh`
+
+Diagnoses GPU issues on Kubernetes GPU nodes. Cluster-wide (via `kubectl`/`jq`/`helm`): lists GPU
+nodes with their allocatable/capacity GPU counts and scheduled GPU pods, checks the GPU Operator's
+`nvidia-device-plugin-daemonset`/`nvidia-container-toolkit-daemonset` rollout status, reads the GPU
+Operator Helm release's `toolkit.env` (`CONTAINERD_CONFIG`/`CONTAINERD_SOCKET`) and
+`migManager.enabled`/`mig.strategy`, and checks every GPU node's `nvidia.com/mig.config` /
+`nvidia.com/mig.config.state` labels. On a GPU node (run directly via SSH, or inside a
+`kubectl debug node/<name>` session): parses `ps` output to work out which containerd instance
+kubelet's CRI socket actually resolves to — a node can run more than one containerd — then checks
+that instance's `config.toml` for the NVIDIA runtime class, verifies its `BinaryName` binary exists,
+lists `/dev/nvidia*` devices, runs `nvidia-smi` (and `nvidia-smi mig -lgi`/`-lci`) if present, scans
+the containerd journal for NVIDIA/runtime errors, and finally cross-checks the Helm `toolkit.env`
+values against what was actually detected — a mismatch there means the GPU Operator is patching a
+containerd instance kubelet never talks to, which is a common root cause for GPU workloads silently
+never getting the `nvidia` runtime.
+
+It also flags three MIG-specific pitfalls: a node with manually-carved GPU Instances but no
+`nvidia.com/mig.config` label (the MIG Manager treats "no label" as target `all-disabled` and will
+tear the slices down the moment it starts watching that node); a stuck reconciliation
+(`mig.config.state=failed`/`pending`), with the exact `kubectl rollout restart` / label-toggle
+commands needed to force a re-evaluation, since the manager only reacts to label events and never
+polls hardware state; and a GPU/Compute Instance delete that fails with "In use by another client",
+since the GI/CI hierarchy is enforced (destroy Compute Instances before their GPU Instance, and
+evict any pod running on a slice before destroying it).
+
+If SSH to the node isn't an option, `--node <name>` runs the same local diagnosis
+without it: it creates a short-lived `kubectl debug node/<name>` pod (`--profile=general`, so it
+gets `hostPID` and the host filesystem mounted at `/host`), pipes this same script into it over
+`kubectl exec -i ... -- chroot /host bash -s -- --local-only` (chrooting means `ps`, `nvidia-smi`,
+`journalctl`, etc. all resolve to the host's real binaries, no `--host-root` needed), streams the
+§5-§10 output back live, and always deletes the debug pod on the way out — success or failure.
+Only needs `kubectl`; the debug image (default `busybox:1.36`) only has to provide a shell and
+`chroot`.
+
+**Dependencies:** `kubectl`, `jq`, `helm` (all optional — cluster sections are skipped gracefully if
+missing); `ps`, `awk`, `grep` for the local/node sections (present on any Linux node); `nvidia-smi`
+and `journalctl` are used opportunistically if available.
+
+**Usage:**
+
+```bash
+./gpu-node-debug.sh                                    # cluster overview + local node diagnosis
+./gpu-node-debug.sh --nodes-only                        # cluster-wide GPU/operator overview only
+./gpu-node-debug.sh --local-only                        # local kubelet/containerd diagnosis only
+./gpu-node-debug.sh --local-only --host-root /host       # inside an unchrooted debug pod
+./gpu-node-debug.sh --node <node-name>                   # local diagnosis via kubectl debug, no SSH
+./gpu-node-debug.sh -n gpu-operator -c my-cluster-context
+./gpu-node-debug.sh -h | --help
+```
+
 ### `nlb-status.sh`
 
 Fetches an AWS Network Load Balancer's overview, listeners, target groups, and per-target health status (with instance ID, private IP, AZ, node name, and health state) in a readable, color-coded report.

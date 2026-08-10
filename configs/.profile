@@ -36,11 +36,15 @@ kgn() {
         else "Unknown"
         end;
 
-      ["NAME","NODEGROUP","INSTANCE-TYPE","KUBELET","RUNTIME","STATUS","CREATED"],
+      def extip:
+        ([.status.addresses[]? | select(.type=="ExternalIP") | .address] | first) // "-";
+
+      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","CREATED"],
       (.items[] | [
         .metadata.name,
         (ng),
         (.metadata.labels["node.kubernetes.io/instance-type"] // ""),
+        (extip),
         .status.nodeInfo.kubeletVersion,
         .status.nodeInfo.containerRuntimeVersion,
         ready,
@@ -48,15 +52,15 @@ kgn() {
       ]) | @tsv
     ' |
     awk 'NR==1 {
-      print $1, $2, $3, $4, $5, $6, "CREATED", "AGE"; next
+      print $1, $2, $3, $4, $5, $6, $7, "CREATED", "AGE"; next
     } {
-      cmd = "echo $(( ( $(date -u +%s) - $(date -u -j -f %Y-%m-%dT%H:%M:%SZ \"" $7 "\" +%s) ) / 60 ))"
+      cmd = "echo $(( ( $(date -u +%s) - $(date -u -j -f %Y-%m-%dT%H:%M:%SZ \"" $8 "\" +%s) ) / 60 ))"
       cmd | getline mins
       close(cmd)
       if (mins+0 < 60) age = mins "m"
       else if (mins+0 < 1440) age = int(mins/60) "h"
       else age = int(mins/1440) "d"
-      print $1, $2, $3, $4, $5, $6, $7, age
+      print $1, $2, $3, $4, $5, $6, $7, $8, age
     }' | column -t
 }
 

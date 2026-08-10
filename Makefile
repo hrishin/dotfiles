@@ -7,14 +7,13 @@ INSTALLERS := $(REPO_ROOT)/installers
 # Sibling checkout of the private dotfiles repo. Not configured yet —
 # override on the command line (or export in your shell) once it exists:
 #   make pull-master PRIVATE_REPO_DIR=~/code/dotfiles-private
-#   make clone-private PRIVATE_REPO_URL=git@github.com:me/dotfiles-private.git
 PRIVATE_REPO_DIR ?=
 PRIVATE_REPO_URL ?=
 
 .DEFAULT_GOAL := help
 
 .PHONY: help bootstrap all install-all install-local-bin install-configs install-skills \
-	fetch-external-skills pull-master update clone-private
+	fetch-external-skills pull-master update
 
 help:
 	@echo "Available targets:"
@@ -29,7 +28,6 @@ help:
 	@echo "  fetch-external-skills  Download external skills (mattpocock, bastos) into skills/"
 	@echo "  pull-master            Pull latest from both public and private repos"
 	@echo "  update                 Update from upstream and reinstall (pull-master + fetch-external-skills + install-all)"
-	@echo "  clone-private          Clone the private dotfiles repository"
 
 # One-off, per-machine setup: installs system packages (zsh, tmux, Oh My
 # Zsh, shellcheck/shfmt, direnv/tfenv/krew), changes the default shell, and
@@ -63,15 +61,7 @@ ifneq ($(strip $(PRIVATE_REPO_DIR)),)
 	@echo "⏳ Pulling latest for private repo..."
 	@git -C "$(PRIVATE_REPO_DIR)" pull
 else
-	@echo "ℹ️  PRIVATE_REPO_DIR not set — skipping private repo pull (run 'make clone-private' first, or pass PRIVATE_REPO_DIR=<path>)"
+	@echo "ℹ️  Nothing to pull from"
 endif
 
 update: pull-master fetch-external-skills install-all
-
-clone-private:
-ifeq ($(strip $(PRIVATE_REPO_URL)),)
-	@echo "❌ PRIVATE_REPO_URL not set. Usage: make clone-private PRIVATE_REPO_URL=<git-url> [PRIVATE_REPO_DIR=<path>]"; exit 1
-else
-	@echo "⏳ Cloning private dotfiles repo..."
-	@git clone "$(PRIVATE_REPO_URL)" "$(if $(strip $(PRIVATE_REPO_DIR)),$(PRIVATE_REPO_DIR),$(REPO_ROOT)/../dotfiles-private)"
-endif
