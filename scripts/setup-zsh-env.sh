@@ -148,6 +148,32 @@ install_tfenv() {
   info "tfenv installed at ~/.tfenv"
 }
 
+install_ghostty() {
+  section "Ghostty (terminal, configured to defer to Herdr — see configs/ghostty/config)"
+  if [[ -d "/Applications/Ghostty.app" ]] || command -v ghostty &>/dev/null; then
+    info "Ghostty already installed — skipping"
+    return
+  fi
+  if [[ "$OS" == "macos" ]]; then
+    brew install --cask ghostty
+  else
+    warn "No package for Ghostty on $OS in this script — install manually: https://ghostty.org/download"
+  fi
+}
+
+install_herdr() {
+  section "Herdr (agent-aware terminal workspace manager — see configs/herdr/config.toml)"
+  if command -v herdr &>/dev/null; then
+    info "herdr already installed — skipping"
+    return
+  fi
+  if [[ "$OS" == "macos" ]]; then
+    brew install herdr
+  else
+    curl -fsSL https://herdr.dev/install.sh | sh
+  fi
+}
+
 install_krew() {
   section "kubectl krew plugin manager"
   if [[ -d "${KREW_ROOT:-$HOME/.krew}" ]]; then
@@ -217,6 +243,8 @@ main() {
   install_direnv
   install_tfenv
   install_krew
+  install_ghostty
+  install_herdr
 
   install_configs_and_local_bin
   set_default_shell

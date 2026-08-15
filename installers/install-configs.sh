@@ -55,6 +55,16 @@ link_config "$CONFIGS_DIR/.profile" "$HOME/.profile"
 link_config "$CONFIGS_DIR/.tmux.conf" "$HOME/.tmux.conf"
 link_config "$CONFIGS_DIR/.bashrc" "$HOME/.bashrc"
 
+# Ghostty reads $XDG_CONFIG_HOME/ghostty/config (default ~/.config/ghostty/config)
+# on both macOS and Linux.
+mkdir -p "$HOME/.config/ghostty"
+link_config "$CONFIGS_DIR/ghostty/config" "$HOME/.config/ghostty/config"
+
+# Herdr reads $XDG_CONFIG_HOME/herdr/config.toml (default ~/.config/herdr/config.toml)
+# on both macOS and Linux.
+mkdir -p "$HOME/.config/herdr"
+link_config "$CONFIGS_DIR/herdr/config.toml" "$HOME/.config/herdr/config.toml"
+
 echo "✅ Public configs installed"
 
 private_installer="$PRIVATE_REPO_DIR/installers/install-configs.sh"

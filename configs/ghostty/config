@@ -1,0 +1,111 @@
+# -----------------------------------------------------------------------
+# Ghostty as a dumb container for Herdr (https://herdr.dev).
+#
+# Herdr (installed via `brew install herdr` — see install_herdr in
+# scripts/setup-zsh-env.sh) owns tabs, splits, workspaces, and agent
+# sessions here (config: configs/herdr/config.toml, prefix = ctrl+b).
+# Ghostty just renders.
+#
+# Herdr understands the Kitty keyboard protocol, which Ghostty emits, so a
+# plain `unbind` is usually enough: once Ghostty stops intercepting a
+# chord, Herdr receives and matches the raw keypress itself (its [keys]
+# table binds the same cmd+... chords directly — see
+# configs/herdr/config.toml). Only number keys and bracket chords need an
+# explicit `text:` override below, because Ghostty registers two competing
+# triggers (character + physical key) for those, for its own native tab
+# shortcuts.
+#
+# Source: https://suraj.io/post/2026/ghostty-as-a-shell-for-herdr/
+#
+# NOTE: this supersedes the Cmd-chord forwarding this file previously did
+# for tmux. configs/.tmux.conf still works standalone via its own C-a
+# prefix — it's just no longer wired to these Cmd chords.
+# -----------------------------------------------------------------------
+
+# Let Herdr receive these instead of Ghostty's native tab/window handling.
+keybind = cmd+t=unbind
+keybind = cmd+w=unbind
+keybind = cmd+n=unbind
+keybind = cmd+shift+w=unbind
+keybind = cmd+d=unbind
+keybind = cmd+shift+d=unbind
+keybind = cmd+shift+enter=unbind
+keybind = cmd+alt+left=unbind
+keybind = cmd+alt+down=unbind
+keybind = cmd+alt+up=unbind
+keybind = cmd+alt+right=unbind
+
+# Navigate Herdr's vertical workspace list.
+keybind = cmd+shift+up=unbind
+keybind = cmd+shift+down=unbind
+
+# Navigate detected agents in Herdr's Agents sidebar.
+keybind = cmd+ctrl+up=unbind
+keybind = cmd+ctrl+down=unbind
+
+# Forward exact Kitty keyboard events to preserve the bracket key, Shift,
+# and Command modifiers for Herdr tab navigation.
+keybind = cmd+shift+left_bracket=text:\x1b[91:123;10u
+keybind = cmd+shift+right_bracket=text:\x1b[93:125;10u
+
+# Forward Cmd+1..9 as exact Kitty keyboard events so Herdr selects its tabs
+# instead of Ghostty selecting native tabs.
+keybind = cmd+1=text:\x1b[49;9u
+keybind = cmd+Digit1=text:\x1b[49;9u
+keybind = cmd+2=text:\x1b[50;9u
+keybind = cmd+Digit2=text:\x1b[50;9u
+keybind = cmd+3=text:\x1b[51;9u
+keybind = cmd+Digit3=text:\x1b[51;9u
+keybind = cmd+4=text:\x1b[52;9u
+keybind = cmd+Digit4=text:\x1b[52;9u
+keybind = cmd+5=text:\x1b[53;9u
+keybind = cmd+Digit5=text:\x1b[53;9u
+keybind = cmd+6=text:\x1b[54;9u
+keybind = cmd+Digit6=text:\x1b[54;9u
+keybind = cmd+7=text:\x1b[55;9u
+keybind = cmd+Digit7=text:\x1b[55;9u
+keybind = cmd+8=text:\x1b[56;9u
+keybind = cmd+Digit8=text:\x1b[56;9u
+keybind = cmd+9=text:\x1b[57;9u
+keybind = cmd+Digit9=text:\x1b[57;9u
+
+# Cmd+Ctrl+1..9 for numbered Herdr workspaces, leaving macOS's Cmd+Shift+number
+# shortcuts untouched.
+keybind = cmd+ctrl+1=text:\x1b[49;13u
+keybind = cmd+ctrl+Digit1=text:\x1b[49;13u
+keybind = cmd+ctrl+2=text:\x1b[50;13u
+keybind = cmd+ctrl+Digit2=text:\x1b[50;13u
+keybind = cmd+ctrl+3=text:\x1b[51;13u
+keybind = cmd+ctrl+Digit3=text:\x1b[51;13u
+keybind = cmd+ctrl+4=text:\x1b[52;13u
+keybind = cmd+ctrl+Digit4=text:\x1b[52;13u
+keybind = cmd+ctrl+5=text:\x1b[53;13u
+keybind = cmd+ctrl+Digit5=text:\x1b[53;13u
+keybind = cmd+ctrl+6=text:\x1b[54;13u
+keybind = cmd+ctrl+Digit6=text:\x1b[54;13u
+keybind = cmd+ctrl+7=text:\x1b[55;13u
+keybind = cmd+ctrl+Digit7=text:\x1b[55;13u
+keybind = cmd+ctrl+8=text:\x1b[56;13u
+keybind = cmd+ctrl+Digit8=text:\x1b[56;13u
+keybind = cmd+ctrl+9=text:\x1b[57;13u
+keybind = cmd+ctrl+Digit9=text:\x1b[57;13u
+
+# Jump directly to an agent by its visible 1..9 index.
+keybind = cmd+ctrl+alt+1=text:\x1b[49;15u
+keybind = cmd+ctrl+alt+Digit1=text:\x1b[49;15u
+keybind = cmd+ctrl+alt+2=text:\x1b[50;15u
+keybind = cmd+ctrl+alt+Digit2=text:\x1b[50;15u
+keybind = cmd+ctrl+alt+3=text:\x1b[51;15u
+keybind = cmd+ctrl+alt+Digit3=text:\x1b[51;15u
+keybind = cmd+ctrl+alt+4=text:\x1b[52;15u
+keybind = cmd+ctrl+alt+Digit4=text:\x1b[52;15u
+keybind = cmd+ctrl+alt+5=text:\x1b[53;15u
+keybind = cmd+ctrl+alt+Digit5=text:\x1b[53;15u
+keybind = cmd+ctrl+alt+6=text:\x1b[54;15u
+keybind = cmd+ctrl+alt+Digit6=text:\x1b[54;15u
+keybind = cmd+ctrl+alt+7=text:\x1b[55;15u
+keybind = cmd+ctrl+alt+Digit7=text:\x1b[55;15u
+keybind = cmd+ctrl+alt+8=text:\x1b[56;15u
+keybind = cmd+ctrl+alt+Digit8=text:\x1b[56;15u
+keybind = cmd+ctrl+alt+9=text:\x1b[57;15u
+keybind = cmd+ctrl+alt+Digit9=text:\x1b[57;15u
