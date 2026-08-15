@@ -109,3 +109,10 @@ unset zle_bracketed_paste
 
 # The next line updates PATH for Nebius CLI.
 if [ -f '/Users/hrishis/.nebius/path.zsh.inc' ]; then source '/Users/hrishis/.nebius/path.zsh.inc'; fi
+
+# bun completions
+[ -s "/Users/hrishis/.bun/_bun" ] && source "/Users/hrishis/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
