@@ -25,8 +25,11 @@
 # Launch Herdr directly instead of a plain shell. Without this, Ghostty
 # opens an ordinary zsh session that never runs `herdr`, so the unbound
 # keys below reach nothing and do nothing — Herdr must own the pane for
-# any of this to work.
-command = herdr
+# any of this to work. Ghostty runs this command via a bare
+# `bash --noprofile --norc`, whose default PATH excludes /opt/homebrew/bin
+# (that's normally added by .zprofile, which --norc skips), so the
+# absolute path is required — a bare `herdr` fails with "command not found".
+command = /opt/homebrew/bin/herdr
 
 # Let Herdr receive these instead of Ghostty's native tab/window handling.
 keybind = cmd+t=unbind
