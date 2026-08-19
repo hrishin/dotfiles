@@ -1,5 +1,5 @@
 ---
-name: linux-troubleshoot
+name: linux-troubleshoot-curl-micro-timing
 description: SSH into a remote Linux host and run network diagnostics. Currently ships a curl timing breakdown (DNS, TCP connect, TLS handshake, TTFB, total) plus a full --trace-ascii protocol trace, rendered as a formatted table. Use when the user wants to troubleshoot connectivity, latency, or TLS handshake issues on a remote box, or asks things like "ssh in and check curl timing", "why is this request slow from that box", "diagnose TLS handshake", or "troubleshoot Linux host".
 allowed-tools: Bash
 metadata:
@@ -30,7 +30,7 @@ BSD `readlink` has no `-f`, so resolve the skill's symlink portably, then
 walk up to the repo root:
 
 ```bash
-SKILL_LINK=~/.claude/skills/linux-troubleshoot/SKILL.md
+SKILL_LINK=~/.claude/skills/linux-troubleshoot-curl-micro-timing/SKILL.md
 SKILL_TARGET="$(readlink "$SKILL_LINK" 2>/dev/null || echo "$SKILL_LINK")"
 SKILL_DIR="$(cd "$(dirname "$SKILL_TARGET")" && pwd -P)"
 REPO_ROOT="$(cd "$SKILL_DIR/../.." && pwd -P)"
