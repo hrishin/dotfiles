@@ -52,4 +52,4 @@ After `make bootstrap` finishes:
 
 ## Thanks
 
-Thanks to [@surajssd](https://github.com/surajssd) for the inspiration behind this repo.
+Thanks to [surajssd/dotfiles](https://github.com/surajssd/dotfiles) for the inspiration behind this repo.
