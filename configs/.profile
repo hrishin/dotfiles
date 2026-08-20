@@ -18,6 +18,7 @@ alias docker=podman
 alias python=python3
 alias kgnl="k get node -L node-type"
 alias kgsep="k get svc,ep"
+alias kghr='k get httproutes.gateway.networking.k8s.io -A -o "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,GATEWAY:.spec.parentRefs[*].name,HOSTNAMES:.spec.hostnames[*],BACKENDS:.spec.rules[*].backendRefs[*].name,ACCEPTED:.status.parents[*].conditions[?(@.type==\"Accepted\")].status,RESOLVED:.status.parents[*].conditions[?(@.type==\"ResolvedRefs\")].status,CREATED:.metadata.creationTimestamp"'
 alias puup="pulumi up -y"
 alias pudst="pulumi destroy -y"
 alias pusop="pulumi stack output"
