@@ -4,13 +4,17 @@
 #  Traces the full request path for an app, in sequence:
 #    Ingress/HTTPRoute -> Service (name, path, port, targetPort)
 #    -> Endpoints (ip) -> Pod (name, container, listening port, node name)
-#    -> Node (ip, status)
+#    -> Node (ip, status) -> NetworkPolicy (ingress rules reaching the pod)
 #  Along the way it flags likely misconfigurations: a Service selector that
-#  matches no Pods, a targetPort that no container actually listens on, and
-#  an Ingress/HTTPRoute backend port that isn't one of the Service's ports.
+#  matches no Pods, a targetPort that no container actually listens on, an
+#  Ingress/HTTPRoute backend port that isn't one of the Service's ports, a
+#  readiness/liveness probe port that doesn't match a container port, and
+#  (with --from-*) a NetworkPolicy that would block the given caller.
 #
 #  Usage: ./k8s-app-map.sh <app> [-n|--namespace <ns>] [-A|--all-namespaces]
 #                           [-l|--selector <key=value>] [-c|--context <kube-context>]
+#                           [--from-ns <namespace>] [--from-labels <k=v,k=v>]
+#                           [--from-ip <ip>]
 # ─────────────────────────────────────────────
 set -euo pipefail
 
@@ -37,10 +41,14 @@ NAMESPACE=""
 ALL_NAMESPACES=0
 SELECTOR=""
 CONTEXT=""
+FROM_NS=""
+FROM_LABELS=""
+FROM_IP=""
 
 usage() {
     echo -e "${BOLD}Usage:${RESET}"
     echo "  $0 <app> [-n|--namespace <ns>] [-A|--all-namespaces] [-l|--selector <key=value>] [-c|--context <kube-context>]"
+    echo "         [--from-ns <namespace>] [--from-labels <k=v,k=v>] [--from-ip <ip>]"
     echo "  $0 -h | --help"
     echo
     echo "  <app>                    app name; matched against the app / app.kubernetes.io/name /"
@@ -50,6 +58,9 @@ usage() {
     echo "  -A, --all-namespaces     search Services across all namespaces"
     echo "  -l, --selector <k=v>     use this exact label selector instead of the app-name guesswork"
     echo "  -c, --context <ctx>      kubectl context to use (default: current context)"
+    echo "  --from-ns <ns>           caller's namespace, to test NetworkPolicy ingress rules against"
+    echo "  --from-labels <k=v,..>   caller's pod labels, to test NetworkPolicy podSelector rules against"
+    echo "  --from-ip <ip>           caller's IP, to test NetworkPolicy ipBlock rules against"
     exit 0
 }
 
@@ -81,6 +92,30 @@ while [[ $# -gt 0 ]]; do
             exit 1
         }
         CONTEXT="$2"
+        shift 2
+        ;;
+    --from-ns)
+        [[ -z "${2:-}" ]] && {
+            err "--from-ns requires a value"
+            exit 1
+        }
+        FROM_NS="$2"
+        shift 2
+        ;;
+    --from-labels)
+        [[ -z "${2:-}" ]] && {
+            err "--from-labels requires a value"
+            exit 1
+        }
+        FROM_LABELS="$2"
+        shift 2
+        ;;
+    --from-ip)
+        [[ -z "${2:-}" ]] && {
+            err "--from-ip requires a value"
+            exit 1
+        }
+        FROM_IP="$2"
         shift 2
         ;;
     -h | --help) usage ;;
@@ -122,6 +157,15 @@ if ! "${KCTL[@]}" cluster-info --request-timeout=5s &>/dev/null; then
     exit 1
 fi
 
+FROM_NS_LABELS_JSON="{}"
+if [[ -n "$FROM_NS" ]]; then
+    FROM_NS_LABELS_JSON="$("${KCTL[@]}" get ns "$FROM_NS" -o json 2>/dev/null | jq -c '.metadata.labels // {}')"
+    if [[ -z "$FROM_NS_LABELS_JSON" || "$FROM_NS_LABELS_JSON" == "null" ]]; then
+        warn "--from-ns '$FROM_NS' not found on the cluster; namespaceSelector rules won't match it."
+        FROM_NS_LABELS_JSON="{}"
+    fi
+fi
+
 if [[ "$ALL_NAMESPACES" -eq 1 ]]; then
     NS_ARGS=(-A)
 else
@@ -135,6 +179,15 @@ fi
 HAS_HTTPROUTE=0
 if "${KCTL[@]}" api-resources --api-group=gateway.networking.k8s.io -o name 2>/dev/null | grep -q '^httproutes\.'; then
     HAS_HTTPROUTE=1
+fi
+
+HAS_CILIUM_NP=0
+HAS_CILIUM_CCNP=0
+if "${KCTL[@]}" api-resources --api-group=cilium.io -o name 2>/dev/null | grep -q '^ciliumnetworkpolicies\.'; then
+    HAS_CILIUM_NP=1
+fi
+if "${KCTL[@]}" api-resources --api-group=cilium.io -o name 2>/dev/null | grep -q '^ciliumclusterwidenetworkpolicies\.'; then
+    HAS_CILIUM_CCNP=1
 fi
 
 NODES_JSON="$("${KCTL[@]}" get nodes -o json 2>/dev/null || echo '{"items":[]}')"
@@ -161,6 +214,307 @@ check_probe_port() {
     for n in "${_names[@]}"; do [[ -n "$n" && "$n" == "$pval" ]] && match=1; done
     if [[ "$match" -eq 0 ]]; then
         issue "$kind probe on container '$cname' targets port '$pval', not among its declared ports [$cports] — verify the probe points at the port the container actually listens on."
+    fi
+}
+
+ip_to_int() {
+    local IFS=. o
+    read -ra o <<<"$1"
+    echo $(((o[0] << 24) + (o[1] << 16) + (o[2] << 8) + o[3]))
+}
+
+ip_in_cidr() {
+    local ip="$1" cidr="$2"
+    local net="${cidr%/*}" bits="${cidr#*/}"
+    [[ "$bits" == "$cidr" ]] && bits=32
+    local ip_int net_int mask
+    ip_int="$(ip_to_int "$ip")"
+    net_int="$(ip_to_int "$net")"
+    if [[ "$bits" -eq 0 ]]; then
+        mask=0
+    else
+        mask=$((0xFFFFFFFF << (32 - bits) & 0xFFFFFFFF))
+    fi
+    [[ $((ip_int & mask)) -eq $((net_int & mask)) ]]
+}
+
+FROM_LABELS_JSON="{}"
+[[ -n "$FROM_LABELS" ]] && FROM_LABELS_JSON="$(jq -n --arg s "$FROM_LABELS" '
+    ($s | split(",") | map(select(length > 0) | split("=")) | map({(.[0]): (.[1] // "")}) | add) // {}')"
+
+# Evaluates whether NetworkPolicies in $1's namespace that select the given
+# pod ($2, full pod JSON) would let traffic reach $3 (space-separated target
+# ports). Only matchLabels selectors are evaluated (matchExpressions are
+# flagged as unverifiable, not silently ignored); ipBlock.except is not
+# evaluated. With no --from-* given this is purely informational: it lists
+# the applicable policies/rules without judging whether any specific caller
+# is allowed through.
+check_network_policy() {
+    local ns="$1" pod_obj="$2" target_ports="$3"
+    local pod_labels
+    pod_labels="$(echo "$pod_obj" | jq -c '.metadata.labels // {}')"
+
+    local np_json np_count
+    np_json="$("${KCTL[@]}" get networkpolicy -n "$ns" -o json 2>/dev/null || echo '{"items":[]}')"
+    np_count="$(echo "$np_json" | jq '.items | length')"
+    if [[ "$np_count" -eq 0 ]]; then
+        ok "No NetworkPolicy objects in $ns — ingress to this pod is unrestricted by NetworkPolicy."
+        return 0
+    fi
+
+    local skipped
+    skipped="$(echo "$np_json" | jq -r --argjson labels "$pod_labels" '
+        [.items[]
+         | select((.spec.policyTypes // ["Ingress"]) | index("Ingress"))
+         | select((.spec.podSelector.matchExpressions // []) | length > 0)
+         | .metadata.name] | join(", ")')"
+    [[ -n "$skipped" ]] && warn "Cannot evaluate podSelector matchExpressions on: $skipped (skipped)."
+
+    local applicable applicable_count
+    applicable="$(echo "$np_json" | jq -c --argjson labels "$pod_labels" '
+        [.items[]
+         | select((.spec.policyTypes // ["Ingress"]) | index("Ingress"))
+         | select((.spec.podSelector.matchExpressions // []) | length == 0)
+         | select((.spec.podSelector.matchLabels // {}) as $sel | ($sel | to_entries | all(.value == $labels[.key])))]')"
+    applicable_count="$(echo "$applicable" | jq 'length')"
+
+    if [[ "$applicable_count" -eq 0 ]]; then
+        ok "No Ingress NetworkPolicy selects this pod's labels — ingress is unrestricted by NetworkPolicy."
+        return 0
+    fi
+
+    local have_caller=0
+    [[ -n "$FROM_NS" || -n "$FROM_LABELS" || -n "$FROM_IP" ]] && have_caller=1
+    local overall_allowed=0
+
+    local pol
+    while IFS= read -r pol; do
+        [[ -z "$pol" ]] && continue
+        local pol_name rule_count
+        pol_name="$(echo "$pol" | jq -r '.metadata.name')"
+        rule_count="$(echo "$pol" | jq '.spec.ingress // [] | length')"
+
+        if [[ "$rule_count" -eq 0 ]]; then
+            if [[ "$applicable_count" -eq 1 ]]; then
+                issue "NetworkPolicy '$pol_name' selects this pod and has 0 ingress rules — denies all ingress."
+            else
+                warn "NetworkPolicy '$pol_name' selects this pod with 0 ingress rules (adds no allowed traffic; other policies below may still allow it)."
+            fi
+            continue
+        fi
+
+        echo -e "  ${CYAN}NetworkPolicy/$pol_name${RESET}"
+        local rule rule_idx=0
+        while IFS= read -r rule; do
+            rule_idx=$((rule_idx + 1))
+            local ports_desc peers_desc
+            ports_desc="$(echo "$rule" | jq -r '
+                (.ports // []) | if length == 0 then "all ports"
+                else (map("\(.protocol // "TCP")/\(.port)") | join(",")) end')"
+            peers_desc="$(echo "$rule" | jq -r '
+                (.from // []) | if length == 0 then "any source"
+                else (map(
+                    if has("namespaceSelector") then "ns:" + ((.namespaceSelector.matchLabels // {}) | to_entries | map("\(.key)=\(.value)") | join(","))
+                    elif has("podSelector") then "pod:" + ((.podSelector.matchLabels // {}) | to_entries | map("\(.key)=\(.value)") | join(","))
+                    elif has("ipBlock") then "cidr:" + .ipBlock.cidr
+                    else "unknown" end
+                ) | join(" OR ")) end')"
+            echo "    rule $rule_idx: from [$peers_desc]  ports [$ports_desc]"
+
+            if [[ "$have_caller" -eq 1 ]]; then
+                local port_ok=1
+                if echo "$rule" | jq -e '(.ports // []) | length > 0' >/dev/null 2>&1; then
+                    port_ok=0
+                    local tp
+                    for tp in $target_ports; do
+                        echo "$rule" | jq -e --arg p "$tp" '.ports[]? | select((.port | tostring) == $p)' >/dev/null 2>&1 && port_ok=1
+                    done
+                fi
+
+                local peer_ok=1
+                if echo "$rule" | jq -e '(.from // []) | length > 0' >/dev/null 2>&1; then
+                    peer_ok=0
+                    local peer
+                    while IFS= read -r peer; do
+                        local this_peer_ok=1
+                        if echo "$peer" | jq -e 'has("namespaceSelector")' >/dev/null 2>&1; then
+                            if [[ -z "$FROM_NS" ]]; then
+                                this_peer_ok=0
+                            else
+                                local sel_match
+                                sel_match="$(echo "$peer" | jq -r --argjson nl "${FROM_NS_LABELS_JSON:-{\}}" '(.namespaceSelector.matchLabels // {}) as $sel | ($sel | to_entries | all(.value == $nl[.key]))')"
+                                [[ "$sel_match" != "true" ]] && this_peer_ok=0
+                            fi
+                        fi
+                        if echo "$peer" | jq -e 'has("podSelector")' >/dev/null 2>&1; then
+                            if [[ -z "$FROM_LABELS" ]]; then
+                                this_peer_ok=0
+                            else
+                                local sel_match2
+                                sel_match2="$(echo "$peer" | jq -r --argjson pl "$FROM_LABELS_JSON" '(.podSelector.matchLabels // {}) as $sel | ($sel | to_entries | all(.value == $pl[.key]))')"
+                                [[ "$sel_match2" != "true" ]] && this_peer_ok=0
+                                # A podSelector with no sibling namespaceSelector matches only
+                                # the policy's own namespace (k8s NetworkPolicy semantics) —
+                                # not "any namespace". Without --from-ns we can't confirm that,
+                                # so don't count it as a match.
+                                if ! echo "$peer" | jq -e 'has("namespaceSelector")' >/dev/null 2>&1; then
+                                    [[ -z "$FROM_NS" || "$FROM_NS" != "$ns" ]] && this_peer_ok=0
+                                fi
+                            fi
+                        fi
+                        if echo "$peer" | jq -e 'has("ipBlock")' >/dev/null 2>&1; then
+                            if [[ -z "$FROM_IP" ]]; then
+                                this_peer_ok=0
+                            else
+                                local cidr
+                                cidr="$(echo "$peer" | jq -r '.ipBlock.cidr')"
+                                ip_in_cidr "$FROM_IP" "$cidr" || this_peer_ok=0
+                            fi
+                        fi
+                        [[ "$this_peer_ok" -eq 1 ]] && peer_ok=1
+                    done < <(echo "$rule" | jq -c '.from[]?')
+                fi
+
+                [[ "$port_ok" -eq 1 && "$peer_ok" -eq 1 ]] && overall_allowed=1
+            fi
+        done < <(echo "$pol" | jq -c '.spec.ingress[]')
+    done < <(echo "$applicable" | jq -c '.[]')
+
+    if [[ "$have_caller" -eq 1 ]]; then
+        if [[ "$overall_allowed" -eq 1 ]]; then
+            ok "NetworkPolicy allows traffic from the specified caller (ns=${FROM_NS:-*} labels=${FROM_LABELS:-*} ip=${FROM_IP:-*})."
+        else
+            issue "NetworkPolicy blocks traffic from the specified caller (ns=${FROM_NS:-*} labels=${FROM_LABELS:-*} ip=${FROM_IP:-*}) — no ingress rule matches."
+        fi
+    fi
+}
+
+# Cilium's native policies (CiliumNetworkPolicy is namespaced,
+# CiliumClusterwideNetworkPolicy is cluster-scoped) use a different schema
+# (endpointSelector/fromEndpoints/fromCIDR/fromEntities/toPorts) than
+# upstream Kubernetes NetworkPolicy, so this is evaluated and reported as its
+# own separate verdict rather than merged into the Kubernetes NetworkPolicy
+# check above. How Cilium combines rules from both sources for the same pod
+# (union vs. intersection, and any Deny-policy precedence) depends on your
+# Cilium version/config — treat each verdict here as one input to check, not
+# a final combined answer; don't assume "blocked" in one implies the other
+# doesn't matter, or that "allowed" in one overrides a Deny elsewhere.
+# fromEntities (e.g. cluster/host/world) is reported but not evaluated.
+check_cilium_policy() {
+    local kind="$1" resource="$2" namespaced="$3" pod_obj="$4" pod_ns="$5" target_ports="$6"
+    local pod_labels
+    pod_labels="$(echo "$pod_obj" | jq -c --arg ns "$pod_ns" '(.metadata.labels // {}) + {"k8s:io.kubernetes.pod.namespace": $ns, "io.kubernetes.pod.namespace": $ns}')"
+
+    local get_args=("$resource")
+    [[ "$namespaced" -eq 1 ]] && get_args+=(-n "$pod_ns")
+
+    local cnp_json cnp_count
+    cnp_json="$("${KCTL[@]}" get "${get_args[@]}" -o json 2>/dev/null || echo '{"items":[]}')"
+    cnp_count="$(echo "$cnp_json" | jq '.items | length')"
+    [[ "$cnp_count" -eq 0 ]] && return 0
+
+    local skipped
+    skipped="$(echo "$cnp_json" | jq -r '
+        [.items[] | select((.spec.endpointSelector.matchExpressions // []) | length > 0) | .metadata.name] | join(", ")')"
+    [[ -n "$skipped" ]] && warn "$kind: cannot evaluate endpointSelector matchExpressions on: $skipped (skipped)."
+
+    local applicable applicable_count
+    applicable="$(echo "$cnp_json" | jq -c --argjson labels "$pod_labels" '
+        [.items[]
+         | select((.spec.endpointSelector.matchExpressions // []) | length == 0)
+         | select((.spec.endpointSelector.matchLabels // {}) as $sel
+                   | ($sel | to_entries | all($labels[(.key | sub("^k8s:"; ""))] == .value)))]')"
+    applicable_count="$(echo "$applicable" | jq 'length')"
+    [[ "$applicable_count" -eq 0 ]] && return 0
+
+    echo -e "  ${BOLD}$kind${RESET}"
+    local have_caller=0
+    [[ -n "$FROM_NS" || -n "$FROM_LABELS" || -n "$FROM_IP" ]] && have_caller=1
+    local overall_allowed=0 saw_entities=0
+
+    local pol
+    while IFS= read -r pol; do
+        [[ -z "$pol" ]] && continue
+        local pol_name rule_count
+        pol_name="$(echo "$pol" | jq -r '.metadata.name')"
+        rule_count="$(echo "$pol" | jq '.spec.ingress // [] | length')"
+
+        if [[ "$rule_count" -eq 0 ]]; then
+            if [[ "$applicable_count" -eq 1 ]]; then
+                issue "$kind '$pol_name' selects this pod and has 0 ingress rules — denies all ingress."
+            else
+                warn "$kind '$pol_name' selects this pod with 0 ingress rules (adds no allowed traffic)."
+            fi
+            continue
+        fi
+
+        echo -e "    ${CYAN}$pol_name${RESET}"
+        local rule rule_idx=0
+        while IFS= read -r rule; do
+            rule_idx=$((rule_idx + 1))
+            local ports_desc peers_desc entities_desc
+            ports_desc="$(echo "$rule" | jq -r '
+                [(.toPorts // [])[].ports[]? | "\(.protocol // "TCP")/\(.port)"] | if length == 0 then "all ports" else join(",") end')"
+            peers_desc="$(echo "$rule" | jq -r '
+                ([(.fromEndpoints // [])[] | "endpoints:" + ((.matchLabels // {}) | to_entries | map("\(.key)=\(.value)") | join(","))]
+                 + [(.fromCIDR // [])[] | "cidr:" + .]
+                 + [(.fromEntities // [])[] | "entity:" + .])
+                | if length == 0 then "any source" else join(" OR ") end')"
+            entities_desc="$(echo "$rule" | jq -r '(.fromEntities // []) | join(",")')"
+            echo "      rule $rule_idx: from [$peers_desc]  ports [$ports_desc]"
+            [[ -n "$entities_desc" ]] && saw_entities=1
+
+            if [[ "$have_caller" -eq 1 ]]; then
+                local port_ok=1
+                if echo "$rule" | jq -e '[(.toPorts // [])[].ports[]?] | length > 0' >/dev/null 2>&1; then
+                    port_ok=0
+                    local tp
+                    for tp in $target_ports; do
+                        echo "$rule" | jq -e --arg p "$tp" '[(.toPorts // [])[].ports[]?] | any((.port | tostring) == $p)' >/dev/null 2>&1 && port_ok=1
+                    done
+                fi
+
+                local peer_ok=0
+                local has_peers
+                has_peers="$(echo "$rule" | jq -r '((.fromEndpoints // []) | length) + ((.fromCIDR // []) | length) + ((.fromEntities // []) | length)')"
+                if [[ "$has_peers" -eq 0 ]]; then
+                    peer_ok=1
+                else
+                    if [[ -n "$FROM_NS$FROM_LABELS" ]]; then
+                        local caller_json
+                        caller_json="$(echo "$FROM_LABELS_JSON" | jq -c --arg ns "$FROM_NS" \
+                            'if $ns != "" then . + {"k8s:io.kubernetes.pod.namespace": $ns, "io.kubernetes.pod.namespace": $ns} else . end')"
+                        local peer
+                        while IFS= read -r peer; do
+                            local sel_match
+                            sel_match="$(echo "$peer" | jq -r --argjson caller "$caller_json" '
+                                (.matchLabels // {}) as $sel
+                                | ($sel | to_entries | all($caller[(.key | sub("^k8s:"; ""))] == .value))')"
+                            [[ "$sel_match" == "true" ]] && peer_ok=1
+                        done < <(echo "$rule" | jq -c '.fromEndpoints[]? // empty')
+                    fi
+
+                    if [[ -n "$FROM_IP" ]]; then
+                        while IFS= read -r cidr; do
+                            [[ -z "$cidr" ]] && continue
+                            ip_in_cidr "$FROM_IP" "$cidr" && peer_ok=1
+                        done < <(echo "$rule" | jq -r '(.fromCIDR // [])[]?')
+                    fi
+                fi
+
+                [[ "$port_ok" -eq 1 && "$peer_ok" -eq 1 ]] && overall_allowed=1
+            fi
+        done < <(echo "$pol" | jq -c '.spec.ingress[]')
+    done < <(echo "$applicable" | jq -c '.[]')
+
+    [[ "$saw_entities" -eq 1 ]] && warn "$kind: one or more rules use fromEntities (e.g. cluster/host/world) — not evaluated against --from-*, verify manually."
+
+    if [[ "$have_caller" -eq 1 ]]; then
+        if [[ "$overall_allowed" -eq 1 ]]; then
+            ok "$kind allows traffic from the specified caller."
+        else
+            issue "$kind blocks traffic from the specified caller — no $kind ingress rule matches. Check how your Cilium setup combines this with the Kubernetes NetworkPolicy verdict above before concluding traffic is blocked overall."
+        fi
     fi
 }
 
@@ -306,6 +660,7 @@ while IFS= read -r svc; do
     pods_json="$("${KCTL[@]}" get pods -n "$svc_ns" -o json 2>/dev/null || echo '{"items":[]}')"
     target_ports="$(echo "$svc" | jq -r '[.spec.ports[]?.targetPort | tostring] | join(" ")')"
     port_check_done=0
+    first_pod_obj=""
 
     table=("IP	STATE	POD	CONTAINER(PORT)	NODE	NODE-IP	NODE-STATUS")
     while IFS=$'\t' read -r pod_name ep_ip ep_state; do
@@ -327,6 +682,7 @@ while IFS= read -r svc; do
 
         if [[ "$port_check_done" -eq 0 ]]; then
             port_check_done=1
+            first_pod_obj="$pod_obj"
             declared_ports="$(echo "$pod_obj" | jq -r '[.spec.containers[]?.ports[]?.containerPort] | join(" ")')"
             if [[ -n "$declared_ports" ]]; then
                 found=0
@@ -371,6 +727,17 @@ while IFS= read -r svc; do
     done <<<"$ep_rows"
 
     printf '%s\n' "${table[@]}" | column -t -s$'\t' | sed 's/^/  /'
+
+    # ── 6. NetworkPolicy (ingress) ──
+    echo
+    echo -e "${BOLD}[6] NetworkPolicy (ingress)${RESET}"
+    if [[ -z "$first_pod_obj" ]]; then
+        warn "No backing Pod available to evaluate NetworkPolicy against."
+    else
+        check_network_policy "$svc_ns" "$first_pod_obj" "$target_ports"
+        [[ "$HAS_CILIUM_NP" -eq 1 ]] && check_cilium_policy "CiliumNetworkPolicy" "ciliumnetworkpolicies.cilium.io" 1 "$first_pod_obj" "$svc_ns" "$target_ports"
+        [[ "$HAS_CILIUM_CCNP" -eq 1 ]] && check_cilium_policy "CiliumClusterwideNetworkPolicy" "ciliumclusterwidenetworkpolicies.cilium.io" 0 "$first_pod_obj" "$svc_ns" "$target_ports"
+    fi
 done < <(echo "$SVC_JSON" | jq -c '.items[]')
 
 echo
