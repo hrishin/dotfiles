@@ -70,9 +70,13 @@ ZSH_THEME="fwalch"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git kubectl history-search-multi-word)
+plugins=(git kubectl kube-ps1 history-search-multi-word)
 
 source $ZSH/oh-my-zsh.sh
+
+# Show the active kubectl context/namespace in the right prompt.
+# Toggle with `kubeon` / `kubeoff` if it gets noisy outside k8s work.
+RPROMPT='$(kube_ps1)'
 
 # User configuration
 

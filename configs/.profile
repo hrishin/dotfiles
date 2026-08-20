@@ -17,6 +17,7 @@ export PATH="$PATH:/Users/hrishis/go/bin/"
 alias docker=podman
 alias python=python3
 alias kgnl="k get node -L node-type"
+alias kgsep="k get svc,ep"
 alias puup="pulumi up -y"
 alias pudst="pulumi destroy -y"
 alias pusop="pulumi stack output"
@@ -78,6 +79,15 @@ fi
 
 if command -v scw &> /dev/null; then
   eval "$(scw autocomplete script shell=zsh)"
+fi
+
+# kubens ships a zsh completion function (_kubens) via its Homebrew formula,
+# but oh-my-zsh's cached compdump is only rebuilt periodically, so newly
+# installed completions like this one don't get auto-registered. Wire it up
+# explicitly, the same way oh-my-zsh's own kubectl plugin does for _kubectl.
+if command -v kubens &> /dev/null && [[ -n "$ZSH_VERSION" ]]; then
+  autoload -Uz _kubens
+  compdef _kubens kubens kns
 fi
 
 # ============================================================================
