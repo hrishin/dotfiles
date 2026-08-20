@@ -115,6 +115,22 @@ and `journalctl` are used opportunistically if available.
 ./gpu-node-debug.sh -h | --help
 ```
 
+### `k8s-app-map.sh`
+
+Traces the full request path for an app, in sequence: Ingress and/or Gateway API `HTTPRoute` (host, path, backend port) -> Service (name, path, port, targetPort) -> Endpoints (IP) -> Pod (name, container, listening port, node name) -> Node (IP, Ready state). Matching Services are found via the `app` / `app.kubernetes.io/name` / `app.kubernetes.io/instance` labels (first one that hits wins), falling back to a substring match on Service name; `--selector` overrides this with an exact label selector. `HTTPRoute` lookups are skipped silently if the Gateway API CRDs aren't installed on the cluster. Along the way it flags likely misconfigurations as `MISMATCH`: an Ingress/HTTPRoute backend port that isn't one of the Service's actual ports, a Service selector that matches zero Pods (label typo), a Service selector that matches Pods but none are Ready, and a Service `targetPort` that none of the backing Pod's containers declare (only checked when containers declare ports at all, since that's optional in Kubernetes and its absence doesn't itself indicate a problem).
+
+**Dependencies:** `kubectl` (configured for the target cluster), `jq`.
+
+**Usage:**
+
+```bash
+./k8s-app-map.sh myapp                                  # current namespace, guesses the label
+./k8s-app-map.sh myapp -n prod -c my-cluster-context     # explicit namespace/context
+./k8s-app-map.sh myapp -A                                # search across all namespaces
+./k8s-app-map.sh myapp -l app.kubernetes.io/name=myapp   # exact selector, skip the guesswork
+./k8s-app-map.sh -h | --help
+```
+
 ### `nlb-status.sh`
 
 Fetches an AWS Network Load Balancer's overview, listeners, target groups, and per-target health status (with instance ID, private IP, AZ, node name, and health state) in a readable, color-coded report.
