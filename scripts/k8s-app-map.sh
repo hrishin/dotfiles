@@ -601,19 +601,55 @@ while IFS= read -r svc; do
     fi
 
     ing_ports_seen=()
+    declare -A ing_lb_seen=()
     if [[ -n "$ing_rows" ]]; then
         while IFS=$'\t' read -r name host path bport lb; do
             [[ -z "$name" ]] && continue
             echo -e "  ${CYAN}Ingress/$name${RESET}  host: $host  path: $path  backend: ${svc_name}:${bport}  lb: $lb"
             [[ "$bport" != "-" ]] && ing_ports_seen+=("$bport")
+            if [[ "$lb" == "-" && -z "${ing_lb_seen[$name]:-}" ]]; then
+                ing_lb_seen[$name]=1
+                issue "Ingress '$name' has no status.loadBalancer address — the ingress controller may not have processed it (check its IngressClass, and that the controller is running)."
+            fi
         done <<<"$ing_rows"
     fi
     if [[ -n "$route_rows" ]]; then
+        declare -A route_names_seen=()
         while IFS=$'\t' read -r name parents hosts paths bport; do
             [[ -z "$name" ]] && continue
             echo -e "  ${CYAN}HTTPRoute/$name${RESET}  gateway: $parents  hostnames: $hosts  path: $paths  backend: ${svc_name}:${bport}"
             [[ "$bport" != "-" ]] && ing_ports_seen+=("$bport")
+            route_names_seen[$name]=1
         done <<<"$route_rows"
+
+        for name in "${!route_names_seen[@]}"; do
+            route_status_rows="$(echo "$route_json" | jq -r --arg n "$name" '
+                (.items[] | select(.metadata.name == $n)) as $i
+                | ($i.spec.parentRefs // [])[] as $pref
+                | ($pref.namespace // $i.metadata.namespace) as $pns
+                | ([$i.status.parents[]? | select(.parentRef.name == $pref.name and (($pref.namespace // $i.metadata.namespace) == $pns))] | first) as $match
+                | [ $pns, $pref.name,
+                    (if $match == null then "NoStatus" else ((($match.conditions // [])[] | select(.type == "Accepted")).status // "Unknown") end),
+                    (if $match == null then "-" else ((($match.conditions // [])[] | select(.type == "Accepted")).message // "-") end),
+                    (if $match == null then "NoStatus" else ((($match.conditions // [])[] | select(.type == "ResolvedRefs")).status // "Unknown") end),
+                    (if $match == null then "-" else ((($match.conditions // [])[] | select(.type == "ResolvedRefs")).message // "-") end)
+                  ]
+                | @tsv' 2>/dev/null || true)"
+
+            while IFS=$'\t' read -r pns pref_name acc_status acc_msg res_status res_msg; do
+                [[ -z "$pref_name" ]] && continue
+                if [[ "$acc_status" == "NoStatus" ]]; then
+                    if "${KCTL[@]}" get gateway "$pref_name" -n "$pns" &>/dev/null; then
+                        issue "HTTPRoute '$name' parentRef Gateway $pns/$pref_name exists but hasn't accepted this route (no matching status.parents entry) — check the Gateway's listener hostnames/namespace selector and whether the Gateway itself is Programmed."
+                    else
+                        issue "HTTPRoute '$name' parentRef Gateway $pns/$pref_name does not exist — status.parents has no entry for it, so this route isn't being served by any Gateway."
+                    fi
+                    continue
+                fi
+                [[ "$acc_status" != "True" ]] && issue "HTTPRoute '$name' parentRef Gateway $pns/$pref_name: Accepted=$acc_status — $acc_msg"
+                [[ "$res_status" != "True" ]] && issue "HTTPRoute '$name' parentRef Gateway $pns/$pref_name: ResolvedRefs=$res_status — $res_msg"
+            done <<<"$route_status_rows"
+        done
     fi
 
     for bport in "${ing_ports_seen[@]+"${ing_ports_seen[@]}"}"; do
