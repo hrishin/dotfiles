@@ -27,9 +27,18 @@
 # keys below reach nothing and do nothing — Herdr must own the pane for
 # any of this to work. Ghostty runs this command via a bare
 # `bash --noprofile --norc`, whose default PATH excludes /opt/homebrew/bin
-# (that's normally added by .zprofile, which --norc skips), so the
-# absolute path is required — a bare `herdr` fails with "command not found".
-command = /opt/homebrew/bin/herdr
+# (that's normally added by .zprofile, which --norc skips), so a bare
+# `herdr` fails with "command not found" and needs an absolute path.
+#
+# One hardcoded absolute path isn't enough to cover every install location
+# though: Homebrew puts it at /opt/homebrew/bin on Apple Silicon but
+# /usr/local/bin on Intel, and Herdr's Linux installer (curl | sh) puts it
+# in ~/.local/bin instead. The `shell:` prefix routes this whole value
+# through `/bin/sh -c` (confirmed via `ghostty +validate-config`, and
+# documented in `ghostty +show-config --default --docs`) instead of
+# exec'ing it directly, so it can try all three locations via PATH and
+# exec whichever one actually exists.
+command = shell:PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" exec herdr
 
 # Let Herdr receive these instead of Ghostty's native tab/window handling.
 keybind = cmd+t=unbind
