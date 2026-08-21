@@ -156,6 +156,17 @@ install_ghostty() {
     fi
     if [[ "$OS" == "macos" ]]; then
         brew install --cask ghostty
+    elif [[ "$OS" == "debian" ]] && grep -q '^ID=ubuntu' /etc/os-release 2>/dev/null; then
+        # No official Ubuntu-repo package as of this writing (only Debian's
+        # PPA-equivalent infra supports this, so it's Ubuntu-only, not
+        # Debian-proper). mkasberg/ghostty-ubuntu publishes prebuilt .deb
+        # builds via PPA for both amd64 and arm64; add-apt-repository is
+        # idempotent (no-ops on a repeat run), so no extra guard is needed
+        # beyond the "already installed" check above.
+        ensure_pkg add-apt-repository software-properties-common
+        sudo add-apt-repository -y ppa:mkasberg/ghostty-ubuntu
+        sudo apt-get update -qq
+        pkg_install ghostty
     else
         warn "No package for Ghostty on $OS in this script — install manually: https://ghostty.org/download"
     fi
