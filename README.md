@@ -7,10 +7,12 @@ Personal shell configuration, utility scripts, and Claude Code / agent skills, i
 ```bash
 git clone <this-repo-url> ~/code/dotfiles
 cd ~/code/dotfiles
-make bootstrap
+bash scripts/setup-zsh-env.sh
 ```
 
-`make bootstrap` runs `scripts/setup-zsh-env.sh`, a one-time setup for a new machine:
+Run the script directly, not via `make bootstrap`, for this very first invocation — a genuinely bare machine (a fresh cloud VM image, for instance) may not have `make` installed yet, and `make bootstrap` is itself just a one-line wrapper around this same script. Once it's finished (which includes installing `make`), `make bootstrap` and the script are equivalent — use whichever on any later machine that already has `make`.
+
+`scripts/setup-zsh-env.sh` (equivalently, `make bootstrap`) is a one-time setup for a new machine:
 
 - Installs `zsh`, `tmux`, `git`, `curl`, `wget`, `make`, Oh My Zsh, and the `history-search-multi-word` plugin (Debian/Ubuntu, RedHat/Fedora/CentOS, and macOS via Homebrew are supported).
 - Installs `shellcheck` and `shfmt`, required by this repo's shell script conventions.

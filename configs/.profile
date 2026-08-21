@@ -5,11 +5,17 @@ export PULUMI_CONFIG_PASSPHRASE=""
 export PATH="$HOME/.tfenv/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-export PATH="/Users/hrishis/.antigravity/antigravity/bin:$PATH"
-export PATH="/Users/hrishis/.opencode/bin:$PATH"
-export PATH="$PATH:$HOME/Downloads/terraform_1.9.4_darwin_arm64:/private/var/folders/m1/0n9md3h51rx2gf4lw2jllzm80000gn/T/AppTranslocation/E246B421-88F2-40CC-A16C-4558867A6AA0/d/Visual\ Studio\ Code.app/Contents/Resources/app/bin/"
-export PATH="$PATH:/opt/homebrew/bin/"
-export PATH="$PATH:/Users/hrishis/go/bin/"
+# $HOME-relative and existence-gated (not hardcoded to one user/machine), so
+# these are safe no-ops on a machine that doesn't have the tool — including
+# Linux, and including this repo's own private-repo counterpart being
+# checked out for a different user. /opt/homebrew/bin also primes `brew`
+# onto PATH before the `command -v brew` check further below, which is what
+# runs `brew shellenv` for the rest of Homebrew's own PATH/MANPATH setup —
+# a genuinely clean shell has nothing under /opt/homebrew on PATH otherwise.
+[[ -d "$HOME/.antigravity/antigravity/bin" ]] && export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
+[[ -d "$HOME/.opencode/bin" ]] && export PATH="$HOME/.opencode/bin:$PATH"
+[[ -d /opt/homebrew/bin ]] && export PATH="$PATH:/opt/homebrew/bin"
+[[ -d "$HOME/go/bin" ]] && export PATH="$PATH:$HOME/go/bin"
 # ============================================================================
 # Aliases
 # ============================================================================
@@ -71,16 +77,18 @@ kgn() {
 # Shell Integrations & Completions
 # ============================================================================
 
-if command -v direnv &> /dev/null; then
-  eval "$(direnv hook zsh)"
-fi
-
-if [[ -f "/Users/hrishis/.openclaw/completions/openclaw.zsh" ]]; then
-  source "/Users/hrishis/.openclaw/completions/openclaw.zsh"
-fi
-
-if command -v scw &> /dev/null; then
-  eval "$(scw autocomplete script shell=zsh)"
+# This file is sourced by both .zshrc and .bashrc, but `direnv hook`/`scw
+# autocomplete script` each generate shell-specific function syntax for
+# exactly one shell — eval-ing the zsh form under bash is a hard syntax
+# error on every bash startup, not a harmless no-op. Detect the running
+# shell rather than hardcoding zsh.
+if [ -n "${ZSH_VERSION:-}" ]; then
+  command -v direnv &> /dev/null && eval "$(direnv hook zsh)"
+  command -v scw &> /dev/null && eval "$(scw autocomplete script shell=zsh)"
+  [[ -f "$HOME/.openclaw/completions/openclaw.zsh" ]] && source "$HOME/.openclaw/completions/openclaw.zsh"
+elif [ -n "${BASH_VERSION:-}" ]; then
+  command -v direnv &> /dev/null && eval "$(direnv hook bash)"
+  command -v scw &> /dev/null && eval "$(scw autocomplete script shell=bash)"
 fi
 
 # kubens ships a zsh completion function (_kubens) via its Homebrew formula,
