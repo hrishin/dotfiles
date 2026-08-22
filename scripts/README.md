@@ -6,6 +6,21 @@ Each script is standalone — copy it to a host (or `curl` it directly, see exam
 
 ## Scripts
 
+### `container-enter.sh`
+
+Enters a running container's namespaces via `nsenter`, given its container name (not the pod name) as known to the container runtime — resolved via `crictl`, same mechanism `container-inspect.sh` uses. Tries the container's own shell first (`bash`, then `sh`); if the image has neither (distroless/scratch), falls back to the host's shell running inside the container's PID/UTS/IPC/network namespaces only — the mount namespace is deliberately left as the host's so the host shell binary can actually be found and exec'd, the same trick `container-inspect.sh`'s network section uses for `ss`. Exits with the full list of matches (id, name, pod) if the name is ambiguous, rather than guessing.
+
+**Dependencies:** `crictl`, `jq`, `nsenter`. Must be run as root (or via `sudo`) on a node with a running container runtime (containerd/CRI-O) — this isn't something `kubectl` alone can do.
+
+**Usage:**
+
+```bash
+sudo ./container-enter.sh myapp                    # container's own bash, then sh
+sudo ./container-enter.sh myapp --host-shell        # skip straight to the host-shell fallback
+sudo ./container-enter.sh myapp -s /bin/ash         # exec a specific shell, no probing
+sudo ./container-enter.sh -h | --help
+```
+
 ### `container-inspect.sh`
 
 Inspects a container's namespace isolation, cgroup membership, and resource limits (CPU/memory/PIDs), and lists its open listening ports. Useful for checking whether a container is sharing namespaces with the host and what limits its cgroup actually has applied.
