@@ -12,13 +12,35 @@ Enters a running container's namespaces via `nsenter`, given its container name 
 
 **Dependencies:** `crictl`, `jq`, `nsenter`. Must be run as root (or via `sudo`) on a node with a running container runtime (containerd/CRI-O) — this isn't something `kubectl` alone can do.
 
+Also accepts `--id <container-id>` instead of a name, skipping the crictl name lookup (and its ambiguity) entirely — used by `pod-container-enter.sh` below, which already knows the exact ID from `kubectl`.
+
 **Usage:**
 
 ```bash
 sudo ./container-enter.sh myapp                    # container's own bash, then sh
 sudo ./container-enter.sh myapp --host-shell        # skip straight to the host-shell fallback
 sudo ./container-enter.sh myapp -s /bin/ash         # exec a specific shell, no probing
+sudo ./container-enter.sh --id abc123def456         # exact ID, no name lookup
 sudo ./container-enter.sh -h | --help
+```
+
+### `pod-container-enter.sh`
+
+Same idea as `container-enter.sh`, but starting from a Kubernetes pod + container name instead of a node-local container name — for when you don't have a shell already open on the right node. Resolves the pod's node and the container's exact ID via `kubectl`, `scp`s `container-enter.sh` to that node, then `ssh -t`s in to run it there with `--id` (so there's no node-local name ambiguity to worry about) and cleans up the copied script on exit, success or failure.
+
+`container-enter.sh` is copied over rather than piped through the SSH connection's stdin: piping a script via `ssh ... bash -s -- args < script` consumes stdin transferring the script itself, so the interactive shell `nsenter` hands back at the end would inherit an already-exhausted stdin instead of the terminal.
+
+**Dependencies:** `kubectl` (configured for the target cluster), `jq`, `ssh`, `scp`. The SSH target needs a user that can reach the node directly (or via `--ssh-jump`) and has (or can `sudo` into) root, since `container-enter.sh` needs it there.
+
+**Usage:**
+
+```bash
+./pod-container-enter.sh mypod app                                    # current namespace/context
+./pod-container-enter.sh mypod app -n prod -c my-cluster-context      # explicit namespace/context
+./pod-container-enter.sh mypod app --ssh-user ec2-user --ssh-key ~/.ssh/id_rsa
+./pod-container-enter.sh mypod app --ssh-jump bastion.example.com     # via a bastion
+./pod-container-enter.sh mypod app --host-shell                       # passed through to container-enter.sh
+./pod-container-enter.sh -h | --help
 ```
 
 ### `container-inspect.sh`

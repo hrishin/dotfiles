@@ -11,6 +11,7 @@
 #  container-inspect.sh's network section uses for `ss`.
 #
 #  Usage: ./container-enter.sh <container-name> [-s|--shell <path>] [--host-shell]
+#         ./container-enter.sh --id <container-id> [-s|--shell <path>] [--host-shell]
 # ─────────────────────────────────────────────
 set -euo pipefail
 
@@ -27,9 +28,13 @@ err() { echo -e "  ${RED}✖${RESET}  $*" >&2; }
 usage() {
     echo -e "${BOLD}Usage:${RESET}"
     echo "  $0 <container-name> [-s|--shell <path>] [--host-shell]"
+    echo "  $0 --id <container-id> [-s|--shell <path>] [--host-shell]"
     echo "  $0 -h | --help"
     echo
     echo "  <container-name>     container name as known to crictl (e.g. 'app', not the pod name)"
+    echo "  --id <container-id>  exact crictl/CRI container ID instead of a name — skips the"
+    echo "                       name lookup (and its ambiguity) entirely, e.g. when the ID is"
+    echo "                       already known from kubectl"
     echo "  -s, --shell <path>   shell to exec, skipping the bash/sh auto-probe"
     echo "  --host-shell         skip the container's own shell entirely; run the"
     echo "                       host's shell in the container's PID/UTS/IPC/net"
@@ -40,11 +45,20 @@ usage() {
 }
 
 NAME=""
+CONTAINER_ID_OVERRIDE=""
 SHELL_OVERRIDE=""
 HOST_SHELL=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+    --id)
+        [[ -z "${2:-}" ]] && {
+            err "--id requires a value"
+            exit 1
+        }
+        CONTAINER_ID_OVERRIDE="$2"
+        shift 2
+        ;;
     -s | --shell)
         [[ -z "${2:-}" ]] && {
             err "--shell requires a value"
@@ -73,8 +87,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$NAME" ]]; then
-    err "Missing required <container-name> argument."
+if [[ -z "$NAME" && -z "$CONTAINER_ID_OVERRIDE" ]]; then
+    err "Provide either <container-name> or --id <container-id>."
     usage
 fi
 
@@ -93,27 +107,32 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 # ── resolve container name -> id -> pid ──────
-matches_json="$(crictl ps --name "$NAME" -o json 2>/dev/null || echo '{"containers":[]}')"
-match_count="$(echo "$matches_json" | jq '.containers | length')"
+if [[ -n "$CONTAINER_ID_OVERRIDE" ]]; then
+    container_id="$CONTAINER_ID_OVERRIDE"
+else
+    matches_json="$(crictl ps --name "$NAME" -o json 2>/dev/null || echo '{"containers":[]}')"
+    match_count="$(echo "$matches_json" | jq '.containers | length')"
 
-if [[ "$match_count" -eq 0 ]]; then
-    err "No running container matching name '$NAME'. Try: crictl ps"
-    exit 1
-elif [[ "$match_count" -gt 1 ]]; then
-    err "Multiple running containers match '$NAME' — be more specific:"
-    echo "$matches_json" | jq -r '.containers[] | "  \(.id[0:13])  \(.metadata.name)  pod=\(.labels["io.kubernetes.pod.name"] // "-")"'
-    exit 1
+    if [[ "$match_count" -eq 0 ]]; then
+        err "No running container matching name '$NAME'. Try: crictl ps"
+        exit 1
+    elif [[ "$match_count" -gt 1 ]]; then
+        err "Multiple running containers match '$NAME' — be more specific:"
+        echo "$matches_json" | jq -r '.containers[] | "  \(.id[0:13])  \(.metadata.name)  pod=\(.labels["io.kubernetes.pod.name"] // "-")"'
+        exit 1
+    fi
+
+    container_id="$(echo "$matches_json" | jq -r '.containers[0].id')"
 fi
 
-container_id="$(echo "$matches_json" | jq -r '.containers[0].id')"
 pid="$(crictl inspect "$container_id" 2>/dev/null | jq -r '.info.pid')"
 
 if [[ -z "$pid" || "$pid" == "null" || ! -d "/proc/$pid" ]]; then
-    err "Could not resolve a live PID for container '$NAME' ($container_id)."
+    err "Could not resolve a live PID for container '${NAME:-$container_id}' ($container_id)."
     exit 1
 fi
 
-ok "Container: $NAME  (id: ${container_id:0:13}, pid: $pid)"
+ok "Container: ${NAME:-$container_id}  (id: ${container_id:0:13}, pid: $pid)"
 
 # ── enter ─────────────────────────────────────
 if [[ -n "$SHELL_OVERRIDE" ]]; then
