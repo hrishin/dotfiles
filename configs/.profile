@@ -34,13 +34,19 @@ alias pudst="pulumi destroy -y"
 alias pusop="pulumi stack output"
 
 
+# AGE is computed entirely in jq (fromdateiso8601/now), not by shelling out
+# to `date` per row: that approach broke on a cluster where the CREATED
+# field ended up empty by the time awk's nested `date -j -f ...` subshell
+# saw it, throwing a "Failed conversion" error per node and misrendering
+# the whole row. jq's date math avoids the subprocess entirely and doesn't
+# care about BSD (macOS) vs GNU (Linux) `date` flag differences.
 kgn() {
   kubectl get nodes -o json |
     jq -r '
       def ng:
         if (.metadata.labels.NodeGroup // "") != "" then .metadata.labels.NodeGroup
         elif (.metadata.labels["node-type"] // "") != "" then .metadata.labels["node-type"]
-        else ""
+        else "-"
         end;
 
       def ready:
@@ -51,29 +57,27 @@ kgn() {
       def extip:
         ([.status.addresses[]? | select(.type=="ExternalIP") | .address] | first) // "-";
 
-      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","CREATED"],
+      def age($created):
+        (now - ($created | fromdateiso8601)) as $secs
+        | ($secs / 60 | floor) as $mins
+        | if $mins < 60 then "\($mins)m"
+          elif $mins < 1440 then "\(($mins/60)|floor)h"
+          else "\(($mins/1440)|floor)d"
+          end;
+
+      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","CREATED","AGE"],
       (.items[] | [
         .metadata.name,
         (ng),
-        (.metadata.labels["node.kubernetes.io/instance-type"] // ""),
+        (.metadata.labels["node.kubernetes.io/instance-type"] // "-"),
         (extip),
         .status.nodeInfo.kubeletVersion,
         .status.nodeInfo.containerRuntimeVersion,
         ready,
-        .metadata.creationTimestamp
+        .metadata.creationTimestamp,
+        age(.metadata.creationTimestamp)
       ]) | @tsv
-    ' |
-    awk 'NR==1 {
-      print $1, $2, $3, $4, $5, $6, $7, "CREATED", "AGE"; next
-    } {
-      cmd = "echo $(( ( $(date -u +%s) - $(date -u -j -f %Y-%m-%dT%H:%M:%SZ \"" $8 "\" +%s) ) / 60 ))"
-      cmd | getline mins
-      close(cmd)
-      if (mins+0 < 60) age = mins "m"
-      else if (mins+0 < 1440) age = int(mins/60) "h"
-      else age = int(mins/1440) "d"
-      print $1, $2, $3, $4, $5, $6, $7, $8, age
-    }' | column -t
+    ' | column -t -s $'\t'
 }
 
 # ============================================================================
