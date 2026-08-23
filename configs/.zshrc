@@ -121,22 +121,29 @@ if [ -f "$HOME/.nebius/path.zsh.inc" ]; then source "$HOME/.nebius/path.zsh.inc"
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
-# Auto-rename the current Herdr tab to the working directory's basename, on
-# every cd AND once when a new tab/pane's shell starts (so a freshly opened
-# tab is labeled immediately, not just after the first cd in it). Herdr
-# deliberately does NOT forward a pane's OSC 0/2 title sequences up to the
-# outer terminal (per herdr.dev/docs/concepts/: "an OSC 0/OSC 2 title
-# written inside a pane stops at Herdr") and has no built-in cwd-based
-# auto-naming, so this has to go through its own CLI instead. $HERDR_TAB_ID
-# is set by Herdr in every pane's environment (see
+# Auto-rename the current Herdr tab to the working directory's basename on
+# every cd. Herdr deliberately does NOT forward a pane's OSC 0/2 title
+# sequences up to the outer terminal (per herdr.dev/docs/concepts/: "an OSC
+# 0/OSC 2 title written inside a pane stops at Herdr") and has no built-in
+# cwd-based auto-naming, so this has to go through its own CLI instead.
+# $HERDR_TAB_ID is set by Herdr in every pane's environment (see
 # herdr.dev/docs/cli-reference/), so no lookup call is needed to find it.
 # Only active inside a Herdr pane; a no-op everywhere else (plain terminal,
 # tmux, SSH to a box without Herdr).
+#
+# Deliberately NOT also firing this once on every shell startup (which an
+# earlier version of this hook did, to label a brand-new tab immediately
+# without waiting for the first cd): this harness spawns a fresh shell per
+# Bash-tool command ("shell state does not persist between commands"), so
+# firing on every startup meant firing on every single tool call, not just
+# on genuine new-tab opens — which is suspected to have caused unrelated
+# prompting/interference during a live Claude Code session running inside
+# a Herdr pane. Not confirmed root-caused, just reverted on strong
+# correlation; a new tab still gets labeled correctly on its first cd.
 if [[ -n "${HERDR_TAB_ID:-}" ]] && command -v herdr &>/dev/null; then
     # &! (not plain &) backgrounds *and* disowns in one step, so zsh doesn't
     # print "[1] <pid>" / "[1]  + done ..." job-control notifications for it.
     _herdr_rename_tab_to_cwd() { herdr tab rename "$HERDR_TAB_ID" "${PWD:t}" &>/dev/null &! }
     autoload -Uz add-zsh-hook
     add-zsh-hook chpwd _herdr_rename_tab_to_cwd
-    _herdr_rename_tab_to_cwd
 fi
