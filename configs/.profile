@@ -26,6 +26,9 @@ alias kgnl="k get node -L node-type"
 alias kgsep="k get svc,ep"
 alias kghr='k get httproutes.gateway.networking.k8s.io -A -o "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,GATEWAY:.spec.parentRefs[*].name,HOSTNAMES:.spec.hostnames[*],BACKENDS:.spec.rules[*].backendRefs[*].name,ACCEPTED:.status.parents[*].conditions[?(@.type==\"Accepted\")].status,RESOLVED:.status.parents[*].conditions[?(@.type==\"ResolvedRefs\")].status,CREATED:.metadata.creationTimestamp"'
 alias kgis='k get ingress -A -o "custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,CLASS:.spec.ingressClassName,HOSTS:.spec.rules[*].host,BACKENDS:.spec.rules[*].http.paths[*].backend.service.name,ADDRESS:.status.loadBalancer.ingress[*].ip,LB-HOST:.status.loadBalancer.ingress[*].hostname,CREATED:.metadata.creationTimestamp"'
+alias kcilsvc="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg service list"
+alias kcillb="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bpf lb list"
+alias kcilep="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg endpoint list"
 alias puup="pulumi up -y"
 alias pudst="pulumi destroy -y"
 alias pusop="pulumi stack output"
