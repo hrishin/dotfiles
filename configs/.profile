@@ -44,10 +44,15 @@ kgn() {
   kubectl get nodes -o json |
     jq -r '
       def ng:
-        if (.metadata.labels.NodeGroup // "") != "" then .metadata.labels.NodeGroup
-        elif (.metadata.labels["node-type"] // "") != "" then .metadata.labels["node-type"]
-        else "-"
-        end;
+        (.metadata.labels // {}) as $l
+        | if ($l.NodeGroup // "") != "" then $l.NodeGroup
+          elif ($l["node-type"] // "") != "" then $l["node-type"]
+          else
+            ([$l | keys[] | select(startswith("node-role.kubernetes.io/")) | sub("^node-role.kubernetes.io/"; "")]) as $roles
+            | if ($roles | length) > 0 then ($roles | join(","))
+              else "<none>"
+              end
+          end;
 
       def ready:
         if ([.status.conditions[]? | select(.type=="Ready") | .status] | any(.=="True")) then "Ready"
