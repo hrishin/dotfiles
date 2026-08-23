@@ -131,7 +131,9 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 # Only active inside a Herdr pane; a no-op everywhere else (plain terminal,
 # tmux, SSH to a box without Herdr).
 if [[ -n "${HERDR_TAB_ID:-}" ]] && command -v herdr &>/dev/null; then
-    _herdr_rename_tab_to_cwd() { herdr tab rename "$HERDR_TAB_ID" "${PWD:t}" &>/dev/null & }
+    # &! (not plain &) backgrounds *and* disowns in one step, so zsh doesn't
+    # print "[1] <pid>" / "[1]  + done ..." job-control notifications for it.
+    _herdr_rename_tab_to_cwd() { herdr tab rename "$HERDR_TAB_ID" "${PWD:t}" &>/dev/null &! }
     autoload -Uz add-zsh-hook
     add-zsh-hook chpwd _herdr_rename_tab_to_cwd
 fi
