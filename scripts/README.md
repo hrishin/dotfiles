@@ -6,6 +6,22 @@ Each script is standalone — copy it to a host (or `curl` it directly, see exam
 
 ## Scripts
 
+### `cert-info.sh`
+
+Prints TLS certificate details for a domain: `curl -v` for the live HTTPS handshake summary (subject, issuer, validity dates, SAN match, verify result — exactly as curl reports them during the real TLS negotiation), then `openssl s_client` + `openssl x509` for the full decoded certificate (all extensions, SANs, serial, SHA-256 fingerprint), plus an expiry check via `openssl x509 -checkend` (not manual date-math — sidesteps BSD-vs-GNU `date` differences entirely). Accepts a bare domain or a full URL; scheme, path, and an embedded port are all handled.
+
+**Dependencies:** `curl`, `openssl`.
+
+**Usage:**
+
+```bash
+./cert-info.sh example.com                        # curl handshake + key facts + full -text dump
+./cert-info.sh https://example.com:8443/some/path  # port/path parsed out automatically
+./cert-info.sh example.com -q                      # skip the full -text dump
+./cert-info.sh example.com -p 8443
+./cert-info.sh -h | --help
+```
+
 ### `container-enter.sh`
 
 Enters a running container's namespaces via `nsenter`, given its container name (not the pod name) as known to the container runtime — resolved via `crictl`, same mechanism `container-inspect.sh` uses. Tries the container's own shell first (`bash`, then `sh`); if the image has neither (distroless/scratch), falls back to the host's shell running inside the container's PID/UTS/IPC/network namespaces only — the mount namespace is deliberately left as the host's so the host shell binary can actually be found and exec'd, the same trick `container-inspect.sh`'s network section uses for `ss`. Exits with the full list of matches (id, name, pod) if the name is ambiguous, rather than guessing.
