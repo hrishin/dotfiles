@@ -132,3 +132,9 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 # git history (see the "feat(zsh): auto-rename the Herdr tab to the cwd
 # basename" commit and its followups) if the root cause turns out to be
 # unrelated and this is worth restoring.
+
+# Optional private additions (machine- or identity-specific aliases,
+# functions, env vars). dotfiles-private should ship a fragment file here
+# rather than its own full .zshrc — a second full .zshrc symlinked over
+# this one would just clobber it instead of merging with it.
+[[ -f "$HOME/.zshrc.private" ]] && source "$HOME/.zshrc.private"

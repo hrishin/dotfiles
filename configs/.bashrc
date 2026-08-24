@@ -117,3 +117,9 @@ if ! shopt -oq posix; then
 fi
 
 source ~/.profile
+
+# Optional private additions (machine- or identity-specific aliases,
+# functions, env vars). dotfiles-private should ship a fragment file here
+# rather than its own full .bashrc — a second full .bashrc symlinked over
+# this one would just clobber it instead of merging with it.
+[[ -f "$HOME/.bashrc.private" ]] && source "$HOME/.bashrc.private"

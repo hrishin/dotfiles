@@ -78,7 +78,18 @@ All installers create symlinks (not copies) so that `git pull` immediately updat
 - Linux: `bashrc` → `~/.zshrc`, `~/.profile`, `~/.tmux.conf`, `~/.bashrc`
 - Both: `~/.config/ghostty/config` — Ghostty terminal config set up to defer tab/window/split/workspace/agent management to [Herdr](https://herdr.dev) (installed via `brew install herdr`, config at `configs/herdr/config.toml`, prefix `ctrl+b`) by unbinding Ghostty's native Cmd-key chords so Herdr receives them directly via the Kitty keyboard protocol. See the comment headers in `configs/ghostty/config` and `configs/herdr/config.toml` for the approach and its source. `configs/.tmux.conf` still works standalone via its own `C-a` prefix but is no longer wired to these Cmd chords.
 
-`installers/install-configs.sh` then invokes `install-configs.sh` to symlink the private configs (see the private repo's `CLAUDE.md`).
+`installers/install-configs.sh` then invokes `install-configs.sh` to symlink the private configs (see the private repo's `CLAUDE.md`), guarded by `DOTFILES_CONFIGS_CHAIN_ACTIVE` against the two repos' installers calling each other back and forth if the private one is written symmetrically.
+
+### Private Overlay Convention
+
+`dotfiles-private` must **not** ship its own full `.zshrc`, `.bashrc`, or `.tmux.conf` — a second full file symlinked over this repo's copy just clobbers it (last symlink wins) instead of merging with it, and if both installers try to claim the same destination path it's also what turns the guard above from "prevents a loop" into "prevents a loop that would otherwise mask the clobbering." Private, machine- or identity-specific additions belong in optional fragment files that the public configs already source if present, so the public file stays the single owner of shared content:
+
+- `~/.zshrc.private` — sourced from the end of `configs/.zshrc`
+- `~/.bashrc.private` — sourced from the end of `configs/.bashrc`
+- `~/.tmux.private.conf` — sourced from the end of `configs/.tmux.conf` via `source-file -q`
+- `~/.credentials` — sourced from `configs/.profile` (secrets/env vars only; predates the convention above)
+
+The private repo's `install-configs.sh` should symlink into these fragment paths, not into `~/.zshrc` / `~/.bashrc` / `~/.tmux.conf` directly.
 
 ### PATH Configuration
 
