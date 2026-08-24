@@ -67,10 +67,21 @@ link_config "$CONFIGS_DIR/herdr/config.toml" "$HOME/.config/herdr/config.toml"
 
 echo "✅ Public configs installed"
 
-private_installer="$PRIVATE_REPO_DIR/installers/install-configs.sh"
-if [ -x "$private_installer" ]; then
-    echo "⏳ Installing private configs..."
-    "$private_installer"
+# Guard against public <-> private installers calling each other back and
+# forth forever (e.g. if the private installer is written symmetrically to
+# also invoke its sibling repo's installer). Each installer is a separate
+# process, so a plain "already ran" flag in this script's own scope can't
+# stop the cycle — but an exported env var is inherited by every child
+# process in the chain, so the second script to check it sees it set and
+# stops the chain there.
+if [ -n "${DOTFILES_CONFIGS_CHAIN_ACTIVE:-}" ]; then
+    echo "ℹ️  Already inside a public/private install-configs chain — not invoking sibling installer again"
 else
-    echo "ℹ️  Private dotfiles repo not found at $PRIVATE_REPO_DIR — skipping private config install"
+    private_installer="$PRIVATE_REPO_DIR/installers/install-configs.sh"
+    if [ -x "$private_installer" ]; then
+        echo "⏳ Installing private configs..."
+        DOTFILES_CONFIGS_CHAIN_ACTIVE=1 "$private_installer"
+    else
+        echo "ℹ️  Private dotfiles repo not found at $PRIVATE_REPO_DIR — skipping private config install"
+    fi
 fi
