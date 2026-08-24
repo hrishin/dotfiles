@@ -34,11 +34,23 @@
 # though: Homebrew puts it at /opt/homebrew/bin on Apple Silicon but
 # /usr/local/bin on Intel, and Herdr's Linux installer (curl | sh) puts it
 # in ~/.local/bin instead. The `shell:` prefix routes this whole value
-# through `/bin/sh -c` (confirmed via `ghostty +validate-config`, and
-# documented in `ghostty +show-config --default --docs`) instead of
-# exec'ing it directly, so it can try all three locations via PATH and
-# exec whichever one actually exists.
-command = shell:PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" exec herdr
+# through a shell instead of exec'ing it directly, so it can try all three
+# locations via PATH and exec whichever one actually exists.
+#
+# The extra `sh -c '...'` wrapper below is load-bearing, not decoration:
+# Ghostty's `shell:` mode runs the value as `exec -l <value>` inside its own
+# `bash -c`. If <value> starts with a bare `PATH=... exec herdr` assignment,
+# that `PATH=...` word lands immediately after `exec`'s `-l` flag, where
+# `exec` treats it as the *program to run* rather than a variable
+# assignment (var-assignment prefixes only attach to the first word of a
+# fresh simple command, and `exec -l` already consumed that slot) — so bash
+# tries to execute a file literally named `PATH=/Users/.../bin:...` and
+# fails with "No such file or directory". Nesting the assignment inside an
+# explicit `sh -c '...'` gives `exec -l` a real program (`sh`) to exec, and
+# the PATH assignment becomes the first word of *that* shell's own command,
+# where it's parsed correctly. Verified with:
+#   bash --noprofile --norc -c "exec -l sh -c '...'" -l
+command = shell:sh -c 'PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH" exec herdr'
 
 # Let Herdr receive these instead of Ghostty's native tab/window handling.
 keybind = cmd+t=unbind
