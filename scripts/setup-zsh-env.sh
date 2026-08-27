@@ -18,6 +18,37 @@ error() { echo -e "${RED}[ERR]${NC}   $*" >&2; }
 section() { echo -e "\n${BOLD}==> $*${NC}"; }
 
 # ---------------------------------------------------------------------------
+# Interactive prompts for optional/impactful steps.
+#
+# Defaults to "yes" (unattended) when stdin isn't a terminal or -y/--yes was
+# passed, so piped runs (curl | bash, CI, remote provisioning) keep working
+# exactly as before without hanging on a prompt.
+# ---------------------------------------------------------------------------
+ASSUME_YES=0
+
+confirm() {
+    local prompt=$1
+    if [[ "$ASSUME_YES" == "1" ]] || [[ ! -t 0 ]]; then
+        return 0
+    fi
+    local reply
+    read -r -p "$(echo -e "${YELLOW}?${NC} ${prompt} [Y/n] ")" reply
+    [[ -z "$reply" || "$reply" =~ ^[Yy] ]]
+}
+
+# maybe_run <prompt> <function> [args...] — ask before running an optional
+# step; skips it (without tripping `set -e`) on "no".
+maybe_run() {
+    local prompt=$1
+    shift
+    if confirm "$prompt"; then
+        "$@"
+    else
+        info "Skipping: $prompt"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # OS detection
 # ---------------------------------------------------------------------------
 detect_os() {
@@ -138,6 +169,32 @@ install_direnv() {
     fi
 }
 
+install_fzf() {
+    section "fzf (fuzzy finder)"
+    if command -v fzf &>/dev/null; then
+        info "fzf already installed — skipping"
+        return
+    fi
+    if [[ "$OS" == "macos" || "$OS" == "debian" ]]; then
+        pkg_install fzf
+    elif [[ "$OS" == "redhat" ]]; then
+        # fzf isn't in the base RHEL/CentOS repos (Fedora's dnf repos have
+        # it, but RHEL/CentOS need EPEL) — fall back to the official
+        # junegunn/fzf installer, which just fetches a prebuilt binary and
+        # works on any distro without extra repos.
+        pkg_install fzf || {
+            warn "fzf not in repos (needs EPEL on RHEL/CentOS) — installing prebuilt binary from junegunn/fzf"
+            local fzf_dir="$HOME/.fzf"
+            if [[ ! -d "$fzf_dir" ]]; then
+                git clone --depth=1 https://github.com/junegunn/fzf.git "$fzf_dir"
+            fi
+            "$fzf_dir/install" --bin --no-update-rc
+            mkdir -p "$HOME/.local/bin"
+            ln -sf "$fzf_dir/bin/fzf" "$HOME/.local/bin/fzf"
+        }
+    fi
+}
+
 install_tfenv() {
     section "tfenv (Terraform version manager)"
     if [[ -d "$HOME/.tfenv" ]]; then
@@ -207,6 +264,32 @@ install_krew() {
     )
 }
 
+install_stern() {
+    section "stern (multi-pod/container kubectl log tailing)"
+    if command -v stern &>/dev/null; then
+        info "stern already installed — skipping"
+        return
+    fi
+    if [[ "$OS" == "macos" ]]; then
+        pkg_install stern
+        return
+    fi
+    # stern isn't packaged for Debian/Ubuntu or RHEL/CentOS (no apt/dnf/yum
+    # package) — install the prebuilt binary from GitHub releases instead.
+    (
+        set -x
+        cd "$(mktemp -d)"
+        ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
+        VERSION="$(curl -fsSL https://api.github.com/repos/stern/stern/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+        TARBALL="stern_${VERSION}_linux_${ARCH}.tar.gz"
+        curl -fsSLO "https://github.com/stern/stern/releases/download/v${VERSION}/${TARBALL}"
+        tar xzf "${TARBALL}"
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 stern "$HOME/.local/bin/stern"
+    )
+    info "stern installed at ~/.local/bin/stern"
+}
+
 # ---------------------------------------------------------------------------
 # Configs (~/.zshrc, ~/.profile, ~/.tmux.conf, ~/.bashrc) and scripts
 # (~/.local/bin) — delegates to the Makefile so this bootstrap script and
@@ -251,6 +334,19 @@ set_default_shell() {
 # Main
 # ---------------------------------------------------------------------------
 main() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        -y | --yes)
+            ASSUME_YES=1
+            shift
+            ;;
+        *)
+            error "Unknown argument: $1"
+            exit 1
+            ;;
+        esac
+    done
+
     echo -e "${BOLD}zsh environment setup${NC}"
 
     detect_os
@@ -259,15 +355,18 @@ main() {
     install_hsmw_plugin
     install_shell_lint_tools
 
-    # Optional tools — comment out anything you don't need
-    install_direnv
-    install_tfenv
-    install_krew
-    install_ghostty
-    install_herdr
+    # Optional tools — you'll be asked before each one (pass -y/--yes, or
+    # run non-interactively, to accept all of them without prompting)
+    maybe_run "Install direnv?" install_direnv
+    maybe_run "Install fzf (fuzzy finder)?" install_fzf
+    maybe_run "Install tfenv (Terraform version manager)?" install_tfenv
+    maybe_run "Install krew (kubectl plugin manager)?" install_krew
+    maybe_run "Install stern (kubectl log tailing)?" install_stern
+    maybe_run "Install Ghostty (terminal)?" install_ghostty
+    maybe_run "Install Herdr (terminal workspace manager)?" install_herdr
 
     install_configs_and_local_bin
-    set_default_shell
+    maybe_run "Change default shell to zsh?" set_default_shell
 
     echo
     info "Setup complete."
