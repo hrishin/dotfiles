@@ -195,6 +195,41 @@ install_fzf() {
     fi
 }
 
+install_jq() {
+    section "jq (command-line JSON processor)"
+    ensure_pkg jq
+}
+
+install_yq() {
+    section "yq (command-line YAML/JSON processor — mikefarah/yq)"
+    if command -v yq &>/dev/null; then
+        info "yq already installed — skipping"
+        return
+    fi
+    if [[ "$OS" == "macos" ]]; then
+        pkg_install yq
+        return
+    fi
+    # Debian/Ubuntu's "yq" apt package is a different, incompatible tool
+    # (kislyuk/yq, a Python jq-wrapper with a different CLI) and RHEL/Fedora
+    # ship no yq package at all — install the mikefarah/yq binary from
+    # GitHub releases on both so behavior matches the Homebrew formula used
+    # on macOS.
+    (
+        set -x
+        cd "$(mktemp -d)"
+        ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
+        # See install_stern for why this reads the release metadata from a
+        # file rather than piping curl (or a captured variable) into grep.
+        curl -fsSL -o release.json https://api.github.com/repos/mikefarah/yq/releases/latest
+        VERSION="$(grep -m1 '"tag_name"' release.json | sed -E 's/.*"(v[^"]+)".*/\1/')"
+        curl -fsSL "https://github.com/mikefarah/yq/releases/download/${VERSION}/yq_linux_${ARCH}" -o yq
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 yq "$HOME/.local/bin/yq"
+    )
+    info "yq installed at ~/.local/bin/yq"
+}
+
 install_tfenv() {
     section "tfenv (Terraform version manager)"
     if [[ -d "$HOME/.tfenv" ]]; then
@@ -280,13 +315,15 @@ install_stern() {
         set -x
         cd "$(mktemp -d)"
         ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
-        # Capture the full response before grepping it — piping curl
-        # straight into `grep -m1` races curl's network writes against
-        # grep exiting on its first match (tag_name is near the top, the
-        # assets list below it is not), which trips a broken-pipe write
-        # error (curl exit 23) under set -o pipefail.
-        RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/stern/stern/releases/latest)"
-        VERSION="$(printf '%s\n' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+        # Fetch the release metadata to a file rather than piping curl (or
+        # a captured variable — printf on a payload this size can still
+        # block mid-write) into `grep -m1`: grep exiting on its first match
+        # while a writer is still mid-flight trips a broken-pipe error
+        # (curl exit 23, or SIGPIPE/exit 141 from printf) under
+        # set -o pipefail. Reading a file grep already owns has no live
+        # writer to race.
+        curl -fsSL -o release.json https://api.github.com/repos/stern/stern/releases/latest
+        VERSION="$(grep -m1 '"tag_name"' release.json | sed -E 's/.*"v([^"]+)".*/\1/')"
         TARBALL="stern_${VERSION}_linux_${ARCH}.tar.gz"
         curl -fsSLO "https://github.com/stern/stern/releases/download/v${VERSION}/${TARBALL}"
         tar xzf "${TARBALL}"
@@ -365,6 +402,8 @@ main() {
     # run non-interactively, to accept all of them without prompting)
     maybe_run "Install direnv?" install_direnv
     maybe_run "Install fzf (fuzzy finder)?" install_fzf
+    maybe_run "Install jq (JSON processor)?" install_jq
+    maybe_run "Install yq (YAML/JSON processor)?" install_yq
     maybe_run "Install tfenv (Terraform version manager)?" install_tfenv
     maybe_run "Install krew (kubectl plugin manager)?" install_krew
     maybe_run "Install stern (kubectl log tailing)?" install_stern
