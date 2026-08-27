@@ -280,7 +280,13 @@ install_stern() {
         set -x
         cd "$(mktemp -d)"
         ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
-        VERSION="$(curl -fsSL https://api.github.com/repos/stern/stern/releases/latest | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+        # Capture the full response before grepping it — piping curl
+        # straight into `grep -m1` races curl's network writes against
+        # grep exiting on its first match (tag_name is near the top, the
+        # assets list below it is not), which trips a broken-pipe write
+        # error (curl exit 23) under set -o pipefail.
+        RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/stern/stern/releases/latest)"
+        VERSION="$(printf '%s\n' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
         TARBALL="stern_${VERSION}_linux_${ARCH}.tar.gz"
         curl -fsSLO "https://github.com/stern/stern/releases/download/v${VERSION}/${TARBALL}"
         tar xzf "${TARBALL}"
