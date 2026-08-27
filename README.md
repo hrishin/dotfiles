@@ -5,7 +5,7 @@ Personal shell configuration, utility scripts, and Claude Code / agent skills, i
 ## Quick setup on a new machine
 
 ```bash
-git clone <this-repo-url> ~/code/dotfiles
+git clone https://github.com/hrishin/dotfiles.git ~/code/dotfiles
 cd ~/code/dotfiles
 bash scripts/setup-zsh-env.sh
 ```
@@ -16,7 +16,7 @@ Run the script directly, not via `make bootstrap`, for this very first invocatio
 
 - Installs `zsh`, `tmux`, `git`, `curl`, `wget`, `make`, Oh My Zsh, and the `history-search-multi-word` plugin (Debian/Ubuntu, RedHat/Fedora/CentOS, and macOS via Homebrew are supported).
 - Installs `shellcheck` and `shfmt`, required by this repo's shell script conventions.
-- Optionally installs `direnv`, `tfenv`, and `kubectl krew` (comment out the corresponding calls in `main()` in `scripts/setup-zsh-env.sh` if you don't want them).
+- Optionally installs `direnv`, `fzf`, `jq`, `yq`, `tfenv`, `kubectl krew`, `stern`, Ghostty, and Herdr — you're prompted `[Y/n]` before each one. Pass `-y`/`--yes` (or run the script non-interactively, e.g. piped through `curl | bash`) to accept all of them without prompting.
 - Runs `make install-configs` and `make install-local-bin` (see below).
 - Sets `zsh` as the default shell.
 
