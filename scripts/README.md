@@ -193,6 +193,8 @@ A `kubectl` plugin — install it (any name matching `kubectl-<verb>` on `PATH` 
 
 **Dependencies:** `kubectl`, `jq`, and `yq` (only for the default YAML output — not needed with `-o json`).
 
+**Zsh tab-completion:** `kubectl-trim <TAB>` (the direct executable-name form) gets `kubectl get`'s own completion — resource types, resource names, and every `get` flag — via a `_kubectl_trim` function in `configs/.profile` that delegates to `_kubectl`'s real dynamic completion (`kubectl __complete get ...`) with `get` spliced in as the verb. The two-word `kubectl trim <TAB>` plugin form isn't covered (would need patching `_kubectl`'s own subcommand dispatch, which is regenerated per kubectl version).
+
 **Usage:**
 
 ```bash

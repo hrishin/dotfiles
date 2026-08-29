@@ -112,6 +112,27 @@ if command -v kubens &> /dev/null && [[ -n "$ZSH_VERSION" ]]; then
   compdef _kubens kubens kns
 fi
 
+# kubectl-trim (scripts/kubectl-trim) just forwards its args into
+# `kubectl get -o json`, so give it kubectl get's own completion —
+# resource types, resource names, and every `get` flag — instead of
+# leaving it with no completion at all. Modern kubectl's zsh completion
+# has no separate per-verb function to borrow (it shells out to
+# `kubectl __complete ...` and lets the real binary compute candidates),
+# so _kubectl_trim replays that same request with "get" spliced in as
+# the verb, then hands off to _kubectl to do the actual work.
+if command -v kubectl-trim &> /dev/null && [[ -n "$ZSH_VERSION" ]]; then
+  _kubectl_trim() {
+    local -a words_orig=("${words[@]}")
+    local current_orig=$CURRENT
+    words=(kubectl get "${words[2,-1]}")
+    ((CURRENT += 1))
+    _kubectl
+    words=("${words_orig[@]}")
+    CURRENT=$current_orig
+  }
+  compdef _kubectl_trim kubectl-trim
+fi
+
 # ============================================================================
 # Tool Initialization
 # ============================================================================
