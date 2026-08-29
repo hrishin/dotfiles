@@ -6,21 +6,12 @@
 # not a kubectl plugin (see .profile for its tab-completion, which
 # reuses kubectl get's own).
 #
-# Adapted from https://github.com/luisdavim/dotfiles (files/scripts/kubectl-trim),
-# rewritten to avoid `eval`ing a shell string built from resource/flag
-# input (the original's `eval "${CMD}"` re-parses that whole string as
-# shell, which is a command-injection footgun) in favor of real argv
-# arrays and pipe stages.
 #
 # Usage:
 #   ktrim pod/metac-0
 #   ktrim pod metac-0 -t .metadata,.status
 set -euo pipefail
 
-# Not sourcing util.sh: this script runs from its ~/.local/bin symlink,
-# where $BASH_SOURCE resolves to the symlink's own directory rather than
-# this repo's scripts/ (bash doesn't follow the symlink for that), and
-# util.sh is deliberately not itself symlinked into ~/.local/bin.
 err() {
     echo "❌ $*" >&2
 }
