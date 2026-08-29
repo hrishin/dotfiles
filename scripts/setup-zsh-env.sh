@@ -277,6 +277,63 @@ install_herdr() {
     fi
 }
 
+install_kubectl() {
+    section "kubectl (Kubernetes CLI)"
+    if command -v kubectl &>/dev/null; then
+        info "kubectl already installed — skipping"
+        return
+    fi
+    if [[ "$OS" == "macos" ]]; then
+        pkg_install kubectl
+        return
+    fi
+    # kubectl isn't packaged by Debian/Ubuntu or RHEL/Fedora without adding
+    # Kubernetes' own apt/yum repo first — install the official release
+    # binary instead, the method Kubernetes itself documents for Linux.
+    (
+        set -x
+        cd "$(mktemp -d)"
+        ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
+        VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+        curl -fsSL "https://dl.k8s.io/release/${VERSION}/bin/linux/${ARCH}/kubectl" -o kubectl
+        mkdir -p "$HOME/.local/bin"
+        install -m 0755 kubectl "$HOME/.local/bin/kubectl"
+    )
+    info "kubectl installed at ~/.local/bin/kubectl"
+}
+
+install_kubectx() {
+    section "kubectx/kubens (fast kubectl context/namespace switching)"
+    if command -v kubectx &>/dev/null && command -v kubens &>/dev/null; then
+        info "kubectx/kubens already installed — skipping"
+        return
+    fi
+    if [[ "$OS" == "macos" ]]; then
+        pkg_install kubectx
+        return
+    fi
+    # Package coverage for kubectx/kubens is inconsistent on Linux (absent
+    # on Fedora/RHEL entirely, only on Ubuntu 24.04+'s universe repo on
+    # Debian/Ubuntu) — install both binaries from the upstream
+    # ahmetb/kubectx GitHub releases instead, matching what Homebrew ships.
+    (
+        set -x
+        cd "$(mktemp -d)"
+        ARCH="$(uname -m | sed -e 's/aarch64/arm64/' -e 's/armv7l/armv7/')"
+        # See install_stern for why this reads the release metadata from a
+        # file rather than piping curl into grep.
+        curl -fsSL -o release.json https://api.github.com/repos/ahmetb/kubectx/releases/latest
+        VERSION="$(grep -m1 '"tag_name"' release.json | sed -E 's/.*"(v[^"]+)".*/\1/')"
+        mkdir -p "$HOME/.local/bin"
+        for bin in kubectx kubens; do
+            curl -fsSL "https://github.com/ahmetb/kubectx/releases/download/${VERSION}/${bin}_${VERSION}_linux_${ARCH}.tar.gz" -o "${bin}.tar.gz"
+            tar xzf "${bin}.tar.gz" "${bin}"
+            install -m 0755 "${bin}" "$HOME/.local/bin/${bin}"
+        done
+    )
+    info "kubectx and kubens installed at ~/.local/bin"
+}
+
 install_krew() {
     section "kubectl krew plugin manager"
     if [[ -d "${KREW_ROOT:-$HOME/.krew}" ]]; then
@@ -414,6 +471,8 @@ main() {
     maybe_run "Install jq (JSON processor)?" install_jq
     maybe_run "Install yq (YAML/JSON processor)?" install_yq
     maybe_run "Install tfenv (Terraform version manager)?" install_tfenv
+    maybe_run "Install kubectl (Kubernetes CLI)?" install_kubectl
+    maybe_run "Install kubectx/kubens (context/namespace switching)?" install_kubectx
     maybe_run "Install krew (kubectl plugin manager)?" install_krew
     maybe_run "Install stern (kubectl log tailing)?" install_stern
     maybe_run "Install Ghostty (terminal)?" install_ghostty

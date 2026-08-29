@@ -16,7 +16,7 @@ Run the script directly, not via `make bootstrap`, for this very first invocatio
 
 - Installs `zsh`, `tmux`, `git`, `curl`, `wget`, `make`, Oh My Zsh, and the `history-search-multi-word` plugin (Debian/Ubuntu, RedHat/Fedora/CentOS, and macOS via Homebrew are supported).
 - Installs `shellcheck` and `shfmt`, required by this repo's shell script conventions.
-- Optionally installs `direnv`, `fzf`, `jq`, `yq`, `tfenv`, `kubectl krew`, `stern`, Ghostty, and Herdr — you're prompted `[Y/n]` before each one. Pass `-y`/`--yes` (or run the script non-interactively, e.g. piped through `curl | bash`) to accept all of them without prompting.
+- Optionally installs `direnv`, `fzf`, `jq`, `yq`, `tfenv`, `kubectl`, `kubectx`/`kubens`, `kubectl krew`, `stern`, Ghostty, and Herdr — you're prompted `[Y/n]` before each one. Pass `-y`/`--yes` (or run the script non-interactively, e.g. piped through `curl | bash`) to accept all of them without prompting.
 - Runs `make install-configs` and `make install-local-bin` (see below).
 - Sets `zsh` as the default shell (also prompted).
 - On macOS, optionally disables automatic period substitution (double-space → ". ").
