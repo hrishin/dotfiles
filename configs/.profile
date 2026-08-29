@@ -59,6 +59,13 @@ kgn() {
         else "Unknown"
         end;
 
+      def taints:
+        ([.spec.taints[]? |
+          if (.value // "") != "" then "\(.key)=\(.value):\(.effect)"
+          else "\(.key):\(.effect)"
+          end] | join(",")) as $t
+        | if ($t | length) > 0 then $t else "<none>" end;
+
       def extip:
         ([.status.addresses[]? | select(.type=="ExternalIP") | .address] | first) // "-";
 
@@ -70,7 +77,7 @@ kgn() {
           else "\(($mins/1440)|floor)d"
           end;
 
-      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","CREATED","AGE"],
+      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","TAINTS","CREATED","AGE"],
       (.items[] | [
         .metadata.name,
         (ng),
@@ -79,6 +86,7 @@ kgn() {
         .status.nodeInfo.kubeletVersion,
         .status.nodeInfo.containerRuntimeVersion,
         ready,
+        (taints),
         .metadata.creationTimestamp,
         age(.metadata.creationTimestamp)
       ]) | @tsv
