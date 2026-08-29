@@ -59,13 +59,6 @@ kgn() {
         else "Unknown"
         end;
 
-      def taints:
-        ([.spec.taints[]? |
-          if (.value // "") != "" then "\(.key)=\(.value):\(.effect)"
-          else "\(.key):\(.effect)"
-          end] | join(",")) as $t
-        | if ($t | length) > 0 then $t else "<none>" end;
-
       def extip:
         ([.status.addresses[]? | select(.type=="ExternalIP") | .address] | first) // "-";
 
@@ -77,7 +70,7 @@ kgn() {
           else "\(($mins/1440)|floor)d"
           end;
 
-      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","TAINTS","CREATED","AGE"],
+      ["NAME","NODEGROUP","INSTANCE-TYPE","EXTERNAL-IP","KUBELET","RUNTIME","STATUS","CREATED","AGE"],
       (.items[] | [
         .metadata.name,
         (ng),
@@ -86,10 +79,35 @@ kgn() {
         .status.nodeInfo.kubeletVersion,
         .status.nodeInfo.containerRuntimeVersion,
         ready,
-        (taints),
         .metadata.creationTimestamp,
         age(.metadata.creationTimestamp)
       ]) | @tsv
+    ' | column -t -s $'\t'
+}
+
+# Per-node taints/labels side by side, one node block at a time — a "node
+# <name> --" header row followed by a "|"-prefixed row per taint/label
+# pair (index-aligned; the shorter list just leaves that side blank).
+kgnt() {
+  kubectl get nodes -o json |
+    jq -r '
+      def taint_str:
+        if (.value // "") != "" then "\(.key)=\(.value):\(.effect)"
+        else "\(.key):\(.effect)"
+        end;
+
+      .items[] |
+      (.metadata.name) as $name |
+      (.spec.taints // []) as $taints |
+      ((.metadata.labels // {}) | to_entries | map("\(.key)=\(.value)")) as $labels |
+      ([($taints|length), ($labels|length)] | max) as $n |
+      (["node \($name) --","TAINTS","LABELS"] | @tsv),
+      (range(0; $n) | [
+          "|",
+          ($taints[.] as $t | if $t then ($t|taint_str) else "" end),
+          ($labels[.] // "")
+        ] | @tsv),
+      ""
     ' | column -t -s $'\t'
 }
 
