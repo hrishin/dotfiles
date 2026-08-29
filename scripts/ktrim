@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# kubectl plugin: strip Kubernetes-managed noise fields (status, managed
-# annotations/labels, timestamps, finalizers, UIDs, resourceVersion,
-# ownerReferences, managedFields, ...) from `kubectl get -o json` output,
-# for a readable/diffable view of a resource.
-#
-# Invoked as `kubectl trim <resource>` once this file is on PATH as
-# kubectl-trim — kubectl's plugin discovery convention picks up any
-# executable named kubectl-<verb> on PATH.
+# Strips Kubernetes-managed noise fields (status, managed annotations/
+# labels, timestamps, finalizers, UIDs, resourceVersion, ownerReferences,
+# managedFields, ...) from `kubectl get -o json` output, for a readable/
+# diffable view of a resource. Just a thin wrapper around `kubectl get`,
+# not a kubectl plugin (see .profile for its tab-completion, which
+# reuses kubectl get's own).
 #
 # Adapted from https://github.com/luisdavim/dotfiles (files/scripts/kubectl-trim),
 # rewritten to avoid `eval`ing a shell string built from resource/flag
@@ -15,8 +13,8 @@
 # arrays and pipe stages.
 #
 # Usage:
-#   kubectl trim pod/metac-0
-#   kubectl trim pod metac-0 -t .metadata,.status
+#   ktrim pod/metac-0
+#   ktrim pod metac-0 -t .metadata,.status
 set -euo pipefail
 
 # Not sourcing util.sh: this script runs from its ~/.local/bin symlink,
@@ -48,7 +46,7 @@ DEFAULT_FIELDS=(
 
 usage() {
     cat <<EOF
-Usage: kubectl trim [flags] <resource> [name]
+Usage: ktrim [flags] <resource> [name]
 
 Strips Kubernetes-managed noise fields (status, managed annotations,
 timestamps, UIDs, resourceVersion, managedFields, ...) from a resource,
@@ -62,8 +60,8 @@ Flags:
                           replacing the default field list
 
 Examples:
-  kubectl trim pod/metac-0
-  kubectl trim pod metac-0 -t .metadata,.status
+  ktrim pod/metac-0
+  ktrim pod metac-0 -t .metadata,.status
 EOF
 }
 
@@ -106,16 +104,16 @@ yaml | json) ;;
 esac
 
 if ! command -v jq &>/dev/null; then
-    err "kubectl-trim needs jq — install it first (see: make bootstrap)"
+    err "ktrim needs jq — install it first (see: make bootstrap)"
     exit 1
 fi
 if [[ "$output" == "yaml" ]] && ! command -v yq &>/dev/null; then
-    err "kubectl-trim needs yq for YAML output — install it, or pass -o json"
+    err "ktrim needs yq for YAML output — install it, or pass -o json"
     exit 1
 fi
 
 if [[ ${#args[@]} -eq 0 ]]; then
-    err "kubectl-trim needs a resource, e.g. kubectl trim pod/metac-0"
+    err "ktrim needs a resource, e.g. ktrim pod/metac-0"
     exit 1
 fi
 

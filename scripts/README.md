@@ -187,22 +187,22 @@ Traces the full request path for an app, in sequence: Ingress and/or Gateway API
 ./k8s-app-map.sh -h | --help
 ```
 
-### `kubectl-trim`
+### `ktrim`
 
-A `kubectl` plugin — install it (any name matching `kubectl-<verb>` on `PATH` is picked up automatically) and it's invoked as `kubectl trim <resource>` (or `kubectl-trim <resource>` directly). Strips Kubernetes-managed noise fields from a `kubectl get -o json` resource — `status`, `kubectl`/`kapp` managed annotations and labels, `creationTimestamp`/`deletionTimestamp`, `finalizers`, `generation`, `uid`, `resourceVersion`, `selfLink`, `ownerReferences`, `managedFields` — for a readable/diffable view. `-t` replaces the default field list with your own comma-separated jq paths. Adapted from [luisdavim/dotfiles](https://github.com/luisdavim/dotfiles/blob/master/files/scripts/kubectl-trim), rewritten to build the `jq`/`yq` pipeline from argv arrays instead of `eval`ing a shell string assembled from resource/flag input.
+A thin wrapper around `kubectl get -o json` that strips Kubernetes-managed noise fields from the result — `status`, `kubectl`/`kapp` managed annotations and labels, `creationTimestamp`/`deletionTimestamp`, `finalizers`, `generation`, `uid`, `resourceVersion`, `selfLink`, `ownerReferences`, `managedFields` — for a readable/diffable view. `-t` replaces the default field list with your own comma-separated jq paths. Adapted from [luisdavim/dotfiles](https://github.com/luisdavim/dotfiles/blob/master/files/scripts/kubectl-trim) (originally a `kubectl-trim` kubectl plugin; renamed to a plain `ktrim` command, matching this repo's other short `k`-prefixed shortcuts in `configs/.profile`), rewritten to build the `jq`/`yq` pipeline from argv arrays instead of `eval`ing a shell string assembled from resource/flag input.
 
 **Dependencies:** `kubectl`, `jq`, and `yq` (only for the default YAML output — not needed with `-o json`).
 
-**Zsh tab-completion:** `kubectl-trim <TAB>` (the direct executable-name form) gets `kubectl get`'s own completion — resource types, resource names, and every `get` flag — via a `_kubectl_trim` function in `configs/.profile` that delegates to `_kubectl`'s real dynamic completion (`kubectl __complete get ...`) with `get` spliced in as the verb. The two-word `kubectl trim <TAB>` plugin form isn't covered (would need patching `_kubectl`'s own subcommand dispatch, which is regenerated per kubectl version).
+**Zsh tab-completion:** `ktrim <TAB>` gets `kubectl get`'s own completion — resource types, resource names, and every `get` flag — via a `_ktrim` function in `configs/.profile` that delegates to `_kubectl`'s real dynamic completion (`kubectl __complete get ...`) with `get` spliced in as the verb.
 
 **Usage:**
 
 ```bash
-kubectl trim pod/metac-0
-kubectl trim svc cert-manager -n cert-manager           # YAML (default)
-kubectl trim svc cert-manager -n cert-manager -o json    # JSON
-kubectl trim pod metac-0 -t .metadata,.status            # custom field list
-kubectl trim -h | --help
+ktrim pod/metac-0
+ktrim svc cert-manager -n cert-manager           # YAML (default)
+ktrim svc cert-manager -n cert-manager -o json    # JSON
+ktrim pod metac-0 -t .metadata,.status            # custom field list
+ktrim -h | --help
 ```
 
 ### `nlb-status.sh`
