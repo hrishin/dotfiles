@@ -29,10 +29,18 @@ alias kgis='k get ingress -A -o "custom-columns=NAMESPACE:.metadata.namespace,NA
 alias kcilsvc="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg service list"
 alias kcillb="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg bpf lb list"
 alias kcilep="k -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg endpoint list"
+alias kgev="k get events --sort-by='.lastTimestamp'"
+alias kgeva="k get events -A --sort-by='.lastTimestamp'"
 alias puup="pulumi up -y"
 alias pudst="pulumi destroy -y"
 alias pusop="pulumi stack output"
 
+
+# EndpointSlices are labeled with the owning Service's name
+# (kubernetes.io/service-name), not named after it directly.
+kgeps() {
+  k get endpointslices -l kubernetes.io/service-name="$1" -o yaml
+}
 
 # AGE is computed entirely in jq (fromdateiso8601/now), not by shelling out
 # to `date` per row: that approach broke on a cluster where the CREATED
