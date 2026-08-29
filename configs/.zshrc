@@ -1,6 +1,11 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
+# Must run before Oh My Zsh loads below: some of its bundled plugins (e.g.
+# kubectl) check `$+commands[...]` at load time and silently no-op if the
+# command isn't already on PATH yet — see .path.sh for the full story.
+[[ -e ~/.path.sh ]] && source ~/.path.sh
+
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
 

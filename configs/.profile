@@ -1,21 +1,11 @@
 # ============================================================================
 # PATH Configuration
 # ============================================================================
-export PULUMI_CONFIG_PASSPHRASE=""
-export PATH="$HOME/.tfenv/bin:$PATH"
-export PATH="$HOME/.local/bin:$PATH"
-export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
-# $HOME-relative and existence-gated (not hardcoded to one user/machine), so
-# these are safe no-ops on a machine that doesn't have the tool — including
-# Linux, and including this repo's own private-repo counterpart being
-# checked out for a different user. /opt/homebrew/bin also primes `brew`
-# onto PATH before the `command -v brew` check further below, which is what
-# runs `brew shellenv` for the rest of Homebrew's own PATH/MANPATH setup —
-# a genuinely clean shell has nothing under /opt/homebrew on PATH otherwise.
-[[ -d "$HOME/.antigravity/antigravity/bin" ]] && export PATH="$HOME/.antigravity/antigravity/bin:$PATH"
-[[ -d "$HOME/.opencode/bin" ]] && export PATH="$HOME/.opencode/bin:$PATH"
-[[ -d /opt/homebrew/bin ]] && export PATH="$PATH:/opt/homebrew/bin"
-[[ -d "$HOME/go/bin" ]] && export PATH="$PATH:$HOME/go/bin"
+# Lives in ~/.path.sh (configs/.path.sh) instead, sourced early by
+# .zshrc/.bashrc — before Oh My Zsh loads, since some of its bundled
+# plugins (e.g. kubectl) silently no-op if their command isn't already on
+# PATH by the time they load. See .path.sh for the full explanation.
+
 # ============================================================================
 # Aliases
 # ============================================================================

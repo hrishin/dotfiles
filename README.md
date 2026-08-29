@@ -33,7 +33,7 @@ Run `make help` for the full list.
 | --- | --- |
 | `make bootstrap` | One-time host setup (see above). The only target that installs system packages or changes your default shell. |
 | `make install-all` (alias `make all`) | Symlinks configs, scripts, and skills — `install-local-bin` + `install-configs` + `install-skills`. |
-| `make install-configs` | Symlinks `configs/.zshrc`, `.profile`, `.tmux.conf`, `.bashrc` into `$HOME`, backing up any existing real file first (`<file>.bak.<timestamp>`). |
+| `make install-configs` | Symlinks `configs/.zshrc`, `.profile`, `.path.sh`, `.tmux.conf`, `.bashrc` into `$HOME`, backing up any existing real file first (`<file>.bak.<timestamp>`). |
 | `make install-local-bin` | Symlinks `scripts/*` into `~/.local/bin`. |
 | `make install-skills` | Symlinks `skills/*` into `~/.claude/skills` and `~/.agents/skills`. |
 | `make fetch-external-skills` | Downloads the vendored external skills (from `mattpocock/skills`, `bastos/skills`) into `skills/`. Not part of `install-all`, so a plain install stays offline. |
@@ -47,7 +47,7 @@ After `make bootstrap` finishes:
 
 ## Contents
 
-- `configs/` — shell and terminal multiplexer configuration (`.profile`, `.zshrc`, `.tmux.conf`, `.bashrc`).
+- `configs/` — shell and terminal multiplexer configuration (`.profile`, `.zshrc`, `.path.sh`, `.tmux.conf`, `.bashrc`).
 - `scripts/` — dev environment bootstrap (`setup-zsh-env.sh`) and standalone troubleshooting/utility scripts (AWS networking, container inspection, etc.). See `scripts/README.md` for details on each one.
 - `installers/` — the scripts behind the Makefile targets: symlinking configs/scripts/skills and fetching vendored skills.
 - `skills/` — Claude Code / agent skills (`SKILL.md` format), some authored here and some vendored from upstream via `make fetch-external-skills`.

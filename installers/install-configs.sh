@@ -49,9 +49,10 @@ Linux)
     ;;
 esac
 
-# Same file set on macOS and Linux: ~/.zshrc, ~/.profile, ~/.tmux.conf, ~/.bashrc.
+# Same file set on macOS and Linux: ~/.zshrc, ~/.profile, ~/.path.sh, ~/.tmux.conf, ~/.bashrc.
 link_config "$CONFIGS_DIR/.zshrc" "$HOME/.zshrc"
 link_config "$CONFIGS_DIR/.profile" "$HOME/.profile"
+link_config "$CONFIGS_DIR/.path.sh" "$HOME/.path.sh"
 link_config "$CONFIGS_DIR/.tmux.conf" "$HOME/.tmux.conf"
 link_config "$CONFIGS_DIR/.bashrc" "$HOME/.bashrc"
 

@@ -74,8 +74,8 @@ All installers create symlinks (not copies) so that `git pull` immediately updat
 
 `installers/install-configs.sh` detects the OS and symlinks the appropriate files:
 
-- macOS (Darwin): `~/.zshrc`, `~/.profile`, `~/.tmux.conf`, `~/.bashrc`
-- Linux: `bashrc` → `~/.zshrc`, `~/.profile`, `~/.tmux.conf`, `~/.bashrc`
+- macOS (Darwin): `~/.zshrc`, `~/.profile`, `~/.path.sh`, `~/.tmux.conf`, `~/.bashrc`
+- Linux: `bashrc` → `~/.zshrc`, `~/.profile`, `~/.path.sh`, `~/.tmux.conf`, `~/.bashrc`
 - Both: `~/.config/ghostty/config` — Ghostty terminal config set up to defer tab/window/split/workspace/agent management to [Herdr](https://herdr.dev) (installed via `brew install herdr`, config at `configs/herdr/config.toml`, prefix `ctrl+b`) by unbinding Ghostty's native Cmd-key chords so Herdr receives them directly via the Kitty keyboard protocol. See the comment headers in `configs/ghostty/config` and `configs/herdr/config.toml` for the approach and its source. `configs/.tmux.conf` still works standalone via its own `C-a` prefix but is no longer wired to these Cmd chords.
 
 `installers/install-configs.sh` then invokes `install-configs.sh` to symlink the private configs (see the private repo's `CLAUDE.md`), guarded by `DOTFILES_CONFIGS_CHAIN_ACTIVE` against the two repos' installers calling each other back and forth if the private one is written symmetrically.
@@ -93,9 +93,7 @@ The private repo's `install-configs.sh` should symlink into these fragment paths
 
 ### PATH Configuration
 
-Shell configs (zshrc/bashrc) add these to PATH:
-
-- `~/.local/bin` - Custom scripts from this repo
+PATH additions (`~/.local/bin` for this repo's custom scripts, plus `~/.tfenv/bin`, `~/.krew/bin`, Homebrew, etc.) live in `configs/.path.sh`, not `configs/.profile`, and are sourced early — before Oh My Zsh loads in `.zshrc` — rather than at `.profile`'s later position. Several bundled Oh My Zsh plugins (e.g. `kubectl`) check `$+commands[...]` at load time and silently no-op, disabling all of their aliases, if the command isn't already on PATH yet; anything this repo's bootstrap script installs into `~/.local/bin` (kubectl, stern, yq, etc., on Linux) needs to be visible before that check runs. See the comment header in `configs/.path.sh` for the full explanation.
 
 ## Working with This Repository
 
