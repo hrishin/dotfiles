@@ -279,27 +279,38 @@ install_herdr() {
 
 install_kubectl() {
     section "kubectl (Kubernetes CLI)"
+    local kubectl_path
     if command -v kubectl &>/dev/null; then
         info "kubectl already installed — skipping"
-        return
-    fi
-    if [[ "$OS" == "macos" ]]; then
+        kubectl_path="$(command -v kubectl)"
+    elif [[ "$OS" == "macos" ]]; then
         pkg_install kubectl
-        return
+        kubectl_path="$(command -v kubectl)"
+    else
+        # kubectl isn't packaged by Debian/Ubuntu or RHEL/Fedora without
+        # adding Kubernetes' own apt/yum repo first — install the official
+        # release binary instead, the method Kubernetes itself documents
+        # for Linux.
+        (
+            set -x
+            cd "$(mktemp -d)"
+            ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
+            VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
+            curl -fsSL "https://dl.k8s.io/release/${VERSION}/bin/linux/${ARCH}/kubectl" -o kubectl
+            mkdir -p "$HOME/.local/bin"
+            install -m 0755 kubectl "$HOME/.local/bin/kubectl"
+        )
+        kubectl_path="$HOME/.local/bin/kubectl"
+        info "kubectl installed at $kubectl_path"
     fi
-    # kubectl isn't packaged by Debian/Ubuntu or RHEL/Fedora without adding
-    # Kubernetes' own apt/yum repo first — install the official release
-    # binary instead, the method Kubernetes itself documents for Linux.
-    (
-        set -x
-        cd "$(mktemp -d)"
-        ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv7l/arm/')"
-        VERSION="$(curl -fsSL https://dl.k8s.io/release/stable.txt)"
-        curl -fsSL "https://dl.k8s.io/release/${VERSION}/bin/linux/${ARCH}/kubectl" -o kubectl
-        mkdir -p "$HOME/.local/bin"
-        install -m 0755 kubectl "$HOME/.local/bin/kubectl"
-    )
-    info "kubectl installed at ~/.local/bin/kubectl"
+
+    # A plain `k` command on PATH, not just an interactive-shell alias — so
+    # it also works in non-interactive shells, scripts, and any shell that
+    # doesn't load Oh My Zsh's kubectl plugin (which is what defines `k`
+    # interactively; see .path.sh for why load order matters for it).
+    mkdir -p "$HOME/.local/bin"
+    ln -sf "$kubectl_path" "$HOME/.local/bin/k"
+    info "k -> $kubectl_path (symlinked in ~/.local/bin)"
 }
 
 install_kubectx() {
