@@ -6,7 +6,7 @@ Container images built and published from this repo.
 
 A debugging container for `kubectl debug`: bundles common network/process troubleshooting tools that most application images don't ship, so pods without a shell (distroless/scratch) or without these tools can still be debugged via an attached ephemeral container.
 
-**Tools:** `dig` (dnsutils), `sysstat` (`mpstat`/`iostat`/`sar`), `top`/`ps` (procps), `ip`/`ss` (iproute2), `tcpdump`. Runs as root — `tcpdump` needs `CAP_NET_RAW`/`CAP_NET_ADMIN`, which an ephemeral debug container won't have unless it's already running as root.
+**Tools:** `dig`/`host`/`nslookup` (dnsutils), `sysstat` (`mpstat`/`iostat`/`sar`), `top`/`ps`/`free`/`vmstat` (procps), `ip`/`ss` (iproute2), `curl`, `wget`, `ping` (iputils-ping), `nc` (netcat-openbsd), `traceroute`, `netstat`/`ifconfig` (net-tools), `lsof`, `strace`, `openssl`, `jq`, `less`, `vi` (vim-tiny), plus a CA trust store (ca-certificates) so `curl`/`wget` work against HTTPS. See `images/debug/Dockerfile` for the authoritative, exact package list.
 
 **Build/publish:**
 

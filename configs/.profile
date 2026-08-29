@@ -112,11 +112,11 @@ kgnt() {
 }
 
 # Attaches an ephemeral debug container (docker.io/hriships/debug — see
-# images/debug/Dockerfile: dig, sysstat, top, ip, ss, tcpdump) to a
-# running pod via `kubectl debug`. Pass a container name to also share
-# its process namespace (needed to `nsenter`/see its processes, not for
-# network visibility — containers in a pod already share one network
-# namespace, so tcpdump/ss/ip work either way).
+# images/debug/Dockerfile for its tools) to a running pod via
+# `kubectl debug`. Pass a container name to also share its process
+# namespace (needed to `nsenter`/see its processes, not for network
+# visibility — containers in a pod already share one network namespace
+# regardless).
 kdebug() {
   if [[ -z "${1:-}" ]]; then
     echo "Usage: kdebug <pod> [container]" >&2
