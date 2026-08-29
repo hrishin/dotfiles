@@ -241,3 +241,28 @@ bash softnet.sh /proc/net/softnet_stat   # explicit path
 cat /proc/net/softnet_stat | bash softnet.sh
 NIC=eth0 bash softnet.sh                 # override the NIC name used in recommendations (default: ens2)
 ```
+
+### `user-group-report.sh`
+
+Lists each real (human) user's primary and supplementary group memberships as a table — one row per group, username/userid left blank on a user's second-and-later rows:
+
+```
+USERNAME  USERID  GROUP     GROUPID
+hrishi    1000    hrishi    1000
+                   research  200
+```
+
+Gathered via `getent passwd` (username/uid/primary gid — same data as `/etc/passwd`), `getent group` (name↔gid lookups — same data as `/etc/group`), and `id -Gn <user>` (a user's full group list by name); see the script's header comment for the full rundown, including the quicker single-user alternatives (`groups <user>` / `id <user>`).
+
+**Dependencies:** `getent`, `id`, `column` — all part of a standard Linux base (`column` needs `bsdextrautils`/`util-linux` if it's ever missing).
+
+**Usage:**
+
+```bash
+./user-group-report.sh                       # real users only (UID >= 1000, real login shell)
+./user-group-report.sh --all                   # include system accounts too
+./user-group-report.sh -H user@host             # run on a remote host via ssh (re-execs itself
+                                                  # over `ssh <target> 'bash -s' < this-file`)
+./user-group-report.sh -H user@host --all
+./user-group-report.sh -h | --help
+```
