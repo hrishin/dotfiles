@@ -10,18 +10,18 @@
 #
 #   USERNAME  USERID  GROUP     GROUPID
 #   hrishi    1000    hrishi    1000
-#                      research  200
+#                     research  200
 #
 # Commands used to gather this:
-#   getent passwd          - username, uid, primary gid (one line per user;
-#                             same data as /etc/passwd)
-#   getent group <gid|name> - resolve a group's name<->gid (same data as
-#                             /etc/group)
-#   id -Gn <user>           - a user's full group list (primary +
-#                             supplementary), by name
+#   getent passwd             - username, uid, primary gid (one line per
+#                               user; same data as /etc/passwd)
+#   getent group <gid|name>   - resolve a group's name<->gid (same data as
+#                               /etc/group)
+#   id -Gn <user>             - a user's full group list (primary +
+#                               supplementary), by name
 #   groups <user> / id <user> - quicker one-line view of the same thing
-#                             for a single user, if you don't need the
-#                             table
+#                               for a single user, if you don't need the
+#                               table
 set -uo pipefail
 
 usage() {
@@ -29,10 +29,10 @@ usage() {
 Usage: $(basename "$0") [-H|--host <ssh-target>] [-a|--all]
 
   -H, --host <target>  run on a remote host via \`ssh <target>\` (passes
-                        through anything in your ssh_config: user@host,
-                        port, identity file, etc.)
+                       through anything in your ssh_config: user@host,
+                       port, identity file, etc.)
   -a, --all            include system accounts too (default: only users
-                        with UID >= 1000 and a real login shell)
+                       with UID >= 1000 and a real login shell)
   -h, --help           this help
 EOF
 }
