@@ -187,6 +187,22 @@ Traces the full request path for an app, in sequence: Ingress and/or Gateway API
 ./k8s-app-map.sh -h | --help
 ```
 
+### `kubectl-trim`
+
+A `kubectl` plugin — install it (any name matching `kubectl-<verb>` on `PATH` is picked up automatically) and it's invoked as `kubectl trim <resource>` (or `kubectl-trim <resource>` directly). Strips Kubernetes-managed noise fields from a `kubectl get -o json` resource — `status`, `kubectl`/`kapp` managed annotations and labels, `creationTimestamp`/`deletionTimestamp`, `finalizers`, `generation`, `uid`, `resourceVersion`, `selfLink`, `ownerReferences`, `managedFields` — for a readable/diffable view. `-t` replaces the default field list with your own comma-separated jq paths. Adapted from [luisdavim/dotfiles](https://github.com/luisdavim/dotfiles/blob/master/files/scripts/kubectl-trim), rewritten to build the `jq`/`yq` pipeline from argv arrays instead of `eval`ing a shell string assembled from resource/flag input.
+
+**Dependencies:** `kubectl`, `jq`, and `yq` (only for the default YAML output — not needed with `-o json`).
+
+**Usage:**
+
+```bash
+kubectl trim pod/metac-0
+kubectl trim svc cert-manager -n cert-manager           # YAML (default)
+kubectl trim svc cert-manager -n cert-manager -o json    # JSON
+kubectl trim pod metac-0 -t .metadata,.status            # custom field list
+kubectl trim -h | --help
+```
+
 ### `nlb-status.sh`
 
 Fetches an AWS Network Load Balancer's overview, listeners, target groups, and per-target health status (with instance ID, private IP, AZ, node name, and health state) in a readable, color-coded report.

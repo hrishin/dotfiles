@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# kubectl plugin: strip Kubernetes-managed noise fields (status, managed
+# annotations/labels, timestamps, finalizers, UIDs, resourceVersion,
+# ownerReferences, managedFields, ...) from `kubectl get -o json` output,
+# for a readable/diffable view of a resource.
+#
+# Invoked as `kubectl trim <resource>` once this file is on PATH as
+# kubectl-trim — kubectl's plugin discovery convention picks up any
+# executable named kubectl-<verb> on PATH.
+#
+# Adapted from https://github.com/luisdavim/dotfiles (files/scripts/kubectl-trim),
+# rewritten to avoid `eval`ing a shell string built from resource/flag
+# input (the original's `eval "${CMD}"` re-parses that whole string as
+# shell, which is a command-injection footgun) in favor of real argv
+# arrays and pipe stages.
+#
+# Usage:
+#   kubectl trim pod/metac-0
+#   kubectl trim pod metac-0 -t .metadata,.status
+set -euo pipefail
+
+# Not sourcing util.sh: this script runs from its ~/.local/bin symlink,
+# where $BASH_SOURCE resolves to the symlink's own directory rather than
+# this repo's scripts/ (bash doesn't follow the symlink for that), and
+# util.sh is deliberately not itself symlinked into ~/.local/bin.
+err() {
+    echo "❌ $*" >&2
+}
+
+DEFAULT_FIELDS=(
+    '.status'
+    '.metadata.annotations."kubectl.kubernetes.io/last-applied-configuration"'
+    '.metadata.annotations."kapp.k14s.io/identity"'
+    '.metadata.annotations."kapp.k14s.io/original"'
+    '.metadata.annotations."kapp.k14s.io/original-diff-md5"'
+    '.metadata.labels."kapp.k14s.io/app"'
+    '.metadata.labels."kapp.k14s.io/association"'
+    '.metadata.creationTimestamp'
+    '.metadata.deletionTimestamp'
+    '.metadata.finalizers'
+    '.metadata.generation'
+    '.metadata.uid'
+    '.metadata.resourceVersion'
+    '.metadata.selfLink'
+    '.metadata.ownerReferences'
+    '.metadata.managedFields'
+)
+
+usage() {
+    cat <<EOF
+Usage: kubectl trim [flags] <resource> [name]
+
+Strips Kubernetes-managed noise fields (status, managed annotations,
+timestamps, UIDs, resourceVersion, managedFields, ...) from a resource,
+for a readable/diffable view.
+
+Flags:
+  -h, --help              display this help
+  -d, --debug             print the jq filter before running it
+  -o, --output FORMAT     yaml (default) or json
+  -t, --trim FIELDS       comma-separated jq paths to remove,
+                          replacing the default field list
+
+Examples:
+  kubectl trim pod/metac-0
+  kubectl trim pod metac-0 -t .metadata,.status
+EOF
+}
+
+fields=("${DEFAULT_FIELDS[@]}")
+output=yaml
+debug=0
+args=()
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    -d | --debug)
+        debug=1
+        shift
+        ;;
+    -o | --output)
+        output="$2"
+        shift 2
+        ;;
+    -t | --trim)
+        IFS=',' read -r -a fields <<<"$2"
+        shift 2
+        ;;
+    *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+done
+
+case "$output" in
+yaml | json) ;;
+*)
+    err "Invalid output format: $output (expected yaml or json)"
+    exit 1
+    ;;
+esac
+
+if ! command -v jq &>/dev/null; then
+    err "kubectl-trim needs jq — install it first (see: make bootstrap)"
+    exit 1
+fi
+if [[ "$output" == "yaml" ]] && ! command -v yq &>/dev/null; then
+    err "kubectl-trim needs yq for YAML output — install it, or pass -o json"
+    exit 1
+fi
+
+if [[ ${#args[@]} -eq 0 ]]; then
+    err "kubectl-trim needs a resource, e.g. kubectl trim pod/metac-0"
+    exit 1
+fi
+
+del_args=""
+for f in "${fields[@]}"; do
+    del_args+="${f}?, "
+done
+del_args="${del_args%, }"
+filter="walk(if type == \"object\" then del(${del_args}) else . end)"
+
+if [[ $debug -eq 1 ]]; then
+    echo "jq filter: $filter" >&2
+fi
+
+if [[ "$output" == "yaml" ]]; then
+    kubectl get -o json "${args[@]}" | jq "$filter" | yq e -P -
+else
+    kubectl get -o json "${args[@]}" | jq "$filter"
+fi
