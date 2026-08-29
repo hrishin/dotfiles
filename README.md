@@ -52,6 +52,7 @@ After `make bootstrap` finishes:
 - `installers/` — the scripts behind the Makefile targets: symlinking configs/scripts/skills and fetching vendored skills.
 - `skills/` — Claude Code / agent skills (`SKILL.md` format), some authored here and some vendored from upstream via `make fetch-external-skills`.
 - `images/` — container images built and published from this repo (e.g. a `kubectl debug` troubleshooting image). See `images/README.md`.
+- `.github/workflows/` — CI: builds and publishes the images under `images/` on relevant changes.
 - `Makefile` — entry point for setup and installation; run `make help` for the full target list.
 
 ## Thanks

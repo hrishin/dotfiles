@@ -19,6 +19,11 @@ cd images/debug
 
 Requires a working `docker` (with buildx) or `podman` CLI already logged in to `docker.io` (`docker login` / `podman login`). Pushed builds are always multi-arch (`linux/amd64` + `linux/arm64`) via a manifest list, since this image is meant to run on whatever architecture the target cluster's nodes actually use — a single-arch image built on an Apple Silicon Mac and attached via `kubectl debug` to an amd64 node fails with `exec format error`. `--no-push` skips the manifest step and just builds for the local host arch, for a quick local smoke test.
 
+**CI:** `.github/workflows/debug-image.yml` builds and pushes the same multi-arch image automatically (via `docker/build-push-action` + QEMU, not `build.sh`) on every push to `master` that touches `images/debug/**`, tagging `:latest` and the short commit SHA. It also runs (build-only, no push) on pull requests touching that path, to catch a broken Dockerfile before merge, and supports manual runs via `workflow_dispatch` with an optional extra tag. Needs two repo secrets — Settings → Secrets and variables → Actions:
+
+- `DOCKERHUB_USERNAME` — the `hriships` Docker Hub account
+- `DOCKERHUB_TOKEN` — an [access token](https://hub.docker.com/settings/security) for that account (not the account password), scoped to Read & Write
+
 **Usage:** `kdebug` in `configs/.profile` wraps `kubectl debug` to attach this image to a running pod:
 
 ```bash
