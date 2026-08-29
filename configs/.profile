@@ -39,7 +39,9 @@ alias pusop="pulumi stack output"
 # EndpointSlices are labeled with the owning Service's name
 # (kubernetes.io/service-name), not named after it directly.
 kgeps() {
-  k get endpointslices -l kubernetes.io/service-name="$1" -o yaml
+  local svc="$1"
+  shift
+  k get endpointslices -l kubernetes.io/service-name="$svc" "$@"
 }
 
 # AGE is computed entirely in jq (fromdateiso8601/now), not by shelling out
