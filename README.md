@@ -18,7 +18,8 @@ Run the script directly, not via `make bootstrap`, for this very first invocatio
 - Installs `shellcheck` and `shfmt`, required by this repo's shell script conventions.
 - Optionally installs `direnv`, `fzf`, `jq`, `yq`, `tfenv`, `kubectl krew`, `stern`, Ghostty, and Herdr — you're prompted `[Y/n]` before each one. Pass `-y`/`--yes` (or run the script non-interactively, e.g. piped through `curl | bash`) to accept all of them without prompting.
 - Runs `make install-configs` and `make install-local-bin` (see below).
-- Sets `zsh` as the default shell.
+- Sets `zsh` as the default shell (also prompted).
+- On macOS, optionally disables automatic period substitution (double-space → ". ").
 
 Run it once per machine. Everything else below is a lightweight, repeatable Makefile target — safe to rerun anytime, no package installs or shell changes.
 

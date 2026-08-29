@@ -374,6 +374,15 @@ set_default_shell() {
 }
 
 # ---------------------------------------------------------------------------
+# macOS: disable automatic period substitution (double-space → ". ")
+# ---------------------------------------------------------------------------
+disable_auto_period_substitution() {
+    section "macOS: disable automatic period substitution"
+    defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
+    info "Disabled automatic period substitution (NSGlobalDomain)"
+}
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 main() {
@@ -412,6 +421,9 @@ main() {
 
     install_configs_and_local_bin
     maybe_run "Change default shell to zsh?" set_default_shell
+    if [[ "$OS" == "macos" ]]; then
+        maybe_run "Disable automatic period substitution (double-space → \".\")?" disable_auto_period_substitution
+    fi
 
     echo
     info "Setup complete."
