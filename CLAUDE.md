@@ -14,6 +14,7 @@ The repository follows a two-tier architecture:
 - `scripts/` - Custom utility scripts
 - `skills/` - Agent skills in `SKILL.md` format (symlinked to `~/.claude/skills/` and `~/.agents/skills/`)
 - `installers/` - Installation automation scripts (public repo only)
+- `images/` - Container images built and published from this repo (e.g. a `kubectl debug` troubleshooting image); see `images/README.md`
 
 ## Common Commands
 

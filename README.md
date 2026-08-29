@@ -51,6 +51,7 @@ After `make bootstrap` finishes:
 - `scripts/` — dev environment bootstrap (`setup-zsh-env.sh`) and standalone troubleshooting/utility scripts (AWS networking, container inspection, etc.). See `scripts/README.md` for details on each one.
 - `installers/` — the scripts behind the Makefile targets: symlinking configs/scripts/skills and fetching vendored skills.
 - `skills/` — Claude Code / agent skills (`SKILL.md` format), some authored here and some vendored from upstream via `make fetch-external-skills`.
+- `images/` — container images built and published from this repo (e.g. a `kubectl debug` troubleshooting image). See `images/README.md`.
 - `Makefile` — entry point for setup and installation; run `make help` for the full target list.
 
 ## Thanks
